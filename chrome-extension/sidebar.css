@@ -1,0 +1,219 @@
+/* --- Liquid Glass & Core Variables --- */
+:root {
+    --threadly-frost-blur: 10px;
+    --threadly-tint-color: 255, 255, 255;
+    --threadly-tint-opacity: 0.15;
+    --threadly-inner-shadow: inset 0px 1px 12px -5px rgba(255, 255, 255, 0.7);
+    --threadly-outer-shadow: 0px 8px 24px rgba(0, 0, 0, 0.2);
+    --threadly-border: 1px solid rgba(255, 255, 255, 0.2);
+    --threadly-radius: 20px;
+    --threadly-text-primary: #f0f0f0;
+    --threadly-text-secondary: #c0c0c0;
+    --threadly-primary-accent: #00bfae;
+}
+
+/* --- The main container for positioning and dragging --- */
+#threadly-container {
+    position: fixed;
+    right: 5px;
+    bottom: 20px;
+    z-index: 2147483640;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+/* --- Base Glass Style --- */
+.threadly-glass {
+    background-color: rgba(var(--threadly-tint-color), var(--threadly-tint-opacity));
+    backdrop-filter: blur(var(--threadly-frost-blur));
+    -webkit-backdrop-filter: blur(var(--threadly-frost-blur));
+    box-shadow: var(--threadly-inner-shadow), var(--threadly-outer-shadow);
+    border-radius: var(--threadly-radius);
+    border: var(--threadly-border);
+    isolation: isolate;
+    color: var(--threadly-text-primary);
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* --- Collapsed Tab --- */
+#threadly-sidebar {
+    width: 50px;
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    transition: all 400ms cubic-bezier(0.4, 0, 0.2, 1);
+    transform: scale(1);
+    opacity: 1;
+}
+#threadly-sidebar:hover {
+    background-color: rgba(var(--threadly-tint-color), 0.25);
+    transform: scale(1.05);
+}
+#threadly-sidebar.threadly-dragging {
+    cursor: grabbing;
+    transform: scale(1.1);
+}
+
+.threadly-tab-content {
+    font-weight: 600;
+    font-size: 1rem;
+    pointer-events: none; /* Make text non-interactive for easier dragging */
+    transform: rotate(90deg);
+    white-space: nowrap;
+}
+
+/* --- Expanded Pop-out Panel --- */
+#threadly-panel {
+    width: 360px;
+    height: 550px;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform-origin: bottom right;
+    transition: all 400ms cubic-bezier(0.4, 0, 0.2, 1);
+    transform: scale(0.8);
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+}
+#threadly-container.threadly-expanded #threadly-panel {
+    transform: scale(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+/* Hide the tab when panel is open */
+#threadly-container.threadly-expanded #threadly-sidebar {
+    transform: scale(0.8);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* --- Panel Internals --- */
+.threadly-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    flex-shrink: 0;
+    border-bottom: var(--threadly-border);
+}
+.threadly-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.threadly-platform-indicator {
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background-color: var(--threadly-primary-accent);
+    color: #111;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+.threadly-close {
+    background: none;
+    border: none;
+    color: var(--threadly-text-secondary);
+    font-size: 1.8rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    transition: color 200ms;
+}
+.threadly-close:hover {
+    color: var(--threadly-text-primary);
+}
+.threadly-content {
+    flex-grow: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.threadly-search-container {
+    padding: 12px 18px;
+    border-bottom: var(--threadly-border);
+}
+#threadly-search-input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--threadly-text-primary);
+    font-size: 0.95rem;
+    outline: none;
+    transition: all 0.2s;
+}
+#threadly-search-input:focus {
+    border-color: var(--threadly-primary-accent);
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 3px rgba(0, 191, 174, 0.3);
+}
+
+#threadly-message-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 8px 12px 8px 18px;
+}
+.threadly-message-item {
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid transparent;
+    border-left: 4px solid var(--threadly-primary-accent);
+    word-break: break-word;
+    font-size: 0.9rem;
+}
+.threadly-message-item[data-role="assistant"] {
+    border-left-color: #888;
+}
+.threadly-message-role {
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--threadly-text-secondary);
+    margin-bottom: 5px;
+}
+.threadly-message-text {
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+.threadly-empty-state {
+    text-align: center;
+    color: var(--threadly-text-secondary);
+    padding: 40px 20px;
+}
+
+/* Scrollbar */
+#threadly-message-list::-webkit-scrollbar {
+  width: 8px;
+}
+#threadly-message-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+#threadly-message-list::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+#threadly-message-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Responsive: Hide on mobile */
+@media (max-width: 768px) {
+    #threadly-container {
+        display: none !important;
+    }
+}

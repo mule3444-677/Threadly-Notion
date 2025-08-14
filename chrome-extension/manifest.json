@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Threadly",
+  "version": "2.0.0",
+  "description": "Enhances major AI chat platforms with an auto-loading sidebar for advanced thread management and features.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://grok.com/*",
+        "https://x.ai/*",
+        "https://aistudio.google.com/*",
+        "https://perplexity.ai/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["sidebar.css"],
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://grok.com/*",
+        "https://x.ai/*",
+        "https://aistudio.google.com/*",
+        "https://perplexity.ai/*"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "favicon-16x16.png",
+    "32": "favicon-32x32.png",
+    "96": "favicon-96x96.png",
+    "192": "favicon-192x192.png",
+    "512": "favicon-512x512.png"
+  }
+}
