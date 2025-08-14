@@ -1,10 +1,18 @@
 /* --- Core Variables --- */
 :root {
-    --threadly-bg-color: #2a2a2a;
-    --threadly-border-color: #444;
+    --threadly-bg-color: rgba(42, 42, 42, 0.8);
+    --threadly-border-color: rgba(255, 255, 255, 0.08);
     --threadly-text-primary: #f0f0f0;
     --threadly-text-secondary: #c0c0c0;
     --threadly-primary-accent: #00bfae;
+    
+    /* Glass effect variables */
+    --glass-frost-blur: 0px;
+    --glass-shadow-blur: 20px;
+    --glass-shadow-spread: -5px;
+    --glass-shadow-color: rgba(255, 255, 255, 0.7);
+    --glass-outer-shadow: rgba(0, 0, 0, 0.1);
+    --glass-outer-shadow-blur: 24px;
 }
 
 /* --- Borel Font for Brand --- */
@@ -17,12 +25,14 @@
 }
 
 .threadly-brand {
-    font-family: "Borel", cursive;
-    font-weight: 400;
+    font-family: "Borel", "Georgia", "Times New Roman", serif;
+    font-weight: 600;
     font-style: normal;
     display: flex;
     align-items: center;
     line-height: 1;
+    color: var(--threadly-text-primary);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* --- The main container for positioning and dragging --- */
@@ -40,8 +50,8 @@
     top: 10vh;
     height: 105px;
     width: 35px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 0.07px solid rgba(255, 255, 255, 0.12);
+    background: transparent;
+    border: 1px solid var(--threadly-border-color);
     border-radius: 18px 0 0 18px;
     cursor: pointer;
     z-index: 2147483640;
@@ -56,6 +66,52 @@
     max-height: 105px;
     overflow-y: auto;
     overflow-x: hidden;
+    
+    /* Glass effect layering */
+    isolation: isolate;
+    box-shadow: 0px 6px var(--glass-outer-shadow-blur) var(--glass-outer-shadow);
+}
+
+/* Zoom Effect Layer (::before) */
+#threadly-panel::before {
+    content: '';
+    position: absolute;
+    inset: -50%; /* Negative margin to allow 2x zoom expansion */
+    z-index: -2; /* Behind the glass effect */
+    border-radius: 18px 0 0 18px;
+    background: inherit;
+    transform: scale(2);
+    transform-origin: center;
+    filter: blur(0.5px); /* Slight blur for the zoomed background */
+}
+
+/* Glass Background Blur & Distortion Layer (::after) */
+#threadly-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: 18px 0 0 18px;
+    backdrop-filter: blur(var(--glass-frost-blur));
+    -webkit-backdrop-filter: blur(var(--glass-frost-blur));
+    filter: url(#glass-distortion);
+}
+
+/* Glass Tint Layer (new pseudo-element) */
+#threadly-panel .threadly-tint-layer {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: 18px 0 0 18px;
+    background-color: transparent;
+    pointer-events: none;
+}
+
+/* Loading state - prevent white flash */
+#threadly-panel.loading {
+    background: var(--threadly-bg-color);
+    border: 1px solid var(--threadly-border-color);
 }
 
 /* Expanded State - Always expands upward from current position */
@@ -63,13 +119,29 @@
     width: 320px;
     height: 480px;
     max-height: 70vh;
-    background: var(--threadly-bg-color);
+    background: transparent;
     border: 1px solid var(--threadly-border-color);
     border-radius: 20px;
     cursor: default;
     transform: scale(1);
     overflow: hidden;
     /* Position will be set dynamically by JavaScript to expand upward */
+    
+    /* Enhanced glass effect for expanded state */
+    box-shadow: 0px 6px var(--glass-outer-shadow-blur) var(--glass-outer-shadow);
+}
+
+/* Expanded state glass layers */
+#threadly-panel.threadly-expanded::after {
+    border-radius: 20px;
+}
+
+#threadly-panel.threadly-expanded::before {
+    border-radius: 20px;
+}
+
+#threadly-panel.threadly-expanded .threadly-tint-layer {
+    border-radius: 20px;
 }
 
 
@@ -87,10 +159,33 @@
     position: relative;
     margin: 0;
     margin-right: -10px;
-    opacity: 1;
+    opacity: 1; /* Always visible */
     transform: rotate(-90deg);
     min-height: 105px;
     flex-shrink: 0;
+    transition: opacity 0.3s ease; /* Smooth fade in */
+}
+
+/* Brand text styling */
+.threadly-brand {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+    color: var(--threadly-text-primary);
+    font-weight: 600;
+}
+
+/* Ensure brand text is visible in both collapsed and expanded states */
+.threadly-tab-content .threadly-brand {
+    opacity: 1;
+    color: var(--threadly-text-primary);
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+#threadly-panel.threadly-expanded .threadly-brand {
+    opacity: 1;
+    color: var(--threadly-text-primary);
 }
 
 /* Hide tab content when expanded */
@@ -116,6 +211,13 @@
     top: 0;
     left: 0;
     right: 0;
+    z-index: 10;
+    
+    /* Ultra-minimal glass effect for header */
+    background: rgba(255, 255, 255, 0.005);
+    backdrop-filter: blur(0.5px);
+    -webkit-backdrop-filter: blur(0.5px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 #threadly-panel.threadly-expanded .threadly-header {
@@ -131,6 +233,54 @@
     align-items: center;
     gap: 8px;
     line-height: 1;
+    color: var(--threadly-text-primary);
+}
+
+.threadly-header .threadly-brand {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--threadly-text-primary);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* --- Fix header vertical centering in expanded view --- */
+:root { --threadly-header-h: 56px; } /* tweak 52–60 if needed */
+
+#threadly-panel.threadly-expanded .threadly-header {
+  height: var(--threadly-header-h) !important;
+  display: flex !important;
+  align-items: center !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+#threadly-panel.threadly-expanded .threadly-header h3 {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+}
+
+/* Nudge Borel down a hair to match the pill's visual center */
+#threadly-panel.threadly-expanded .threadly-header .threadly-brand {
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  transform: translateY(2px) !important; /* adjust 1–3px to taste */
+}
+
+/* Keep platform pill centered too */
+#threadly-panel.threadly-expanded .threadly-header .threadly-platform-indicator {
+  display: inline-flex !important;
+  align-items: center !important;
+  line-height: 1 !important;
+}
+
+/* Make content offset match the fixed header height */
+#threadly-panel.threadly-expanded .threadly-content {
+  top: var(--threadly-header-h) !important;
+  height: calc(100% - var(--threadly-header-h)) !important;
 }
 
 .threadly-platform-indicator {
@@ -146,6 +296,46 @@
     justify-content: center;
     line-height: 1;
     height: fit-content;
+    
+    /* Glass effect for platform indicator */
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Platform-specific colors */
+.threadly-platform-indicator[data-platform="chatgpt"] {
+    background: linear-gradient(135deg, #ffffff, #f0f0f0);
+    color: #333;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.threadly-platform-indicator[data-platform="gemini"] {
+    background: linear-gradient(135deg, #4285f4, #34a853, #fbbc04, #ea4335);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.threadly-platform-indicator[data-platform="perplexity"] {
+    background-color: var(--threadly-primary-accent);
+    color: #111;
+}
+
+.threadly-platform-indicator[data-platform="grok"] {
+    background-color: var(--threadly-primary-accent);
+    color: #111;
+}
+
+.threadly-platform-indicator[data-platform="claude"] {
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.threadly-platform-indicator[data-platform="ai-studio"] {
+    background: linear-gradient(135deg, #4285f4, #34a853);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .threadly-close {
@@ -166,7 +356,7 @@
 /* Panel Content (hidden when collapsed) */
 .threadly-content {
     flex-grow: 1;
-    overflow: hidden;
+    overflow: visible; /* Changed from hidden to visible */
     display: flex;
     flex-direction: column;
     opacity: 0;
@@ -178,6 +368,10 @@
     left: 0;
     right: 0;
     bottom: 0;
+    height: calc(100% - 50px); /* Explicit height calculation */
+    
+    /* Content glass effect */
+    z-index: 1;
 }
 
 #threadly-panel.threadly-expanded .threadly-content {
@@ -189,18 +383,30 @@
 .threadly-search-container {
     padding: 12px 18px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0; /* Prevent search from shrinking */
+    
+    /* Ultra-minimal glass effect for search area */
+    background: rgba(255, 255, 255, 0.005);
+    backdrop-filter: blur(0.5px);
+    -webkit-backdrop-filter: blur(0.5px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 #threadly-search-input {
     width: 100%;
     padding: 10px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.1);
     color: var(--threadly-text-primary);
     font-size: 0.95rem;
     outline: none;
     transition: all 0.3s ease;
+    
+    /* Glass effect for search input */
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 #threadly-search-input:focus {
@@ -210,21 +416,51 @@
 }
 
 #threadly-message-list {
-    flex-grow: 1;
+    flex: 1; /* Changed from flex-grow: 1 to flex: 1 */
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px 12px 8px 18px;
+    min-height: 0; /* Important for flexbox scrolling */
+    max-height: calc(100% - 60px); /* Ensure it doesn't exceed available space */
+    height: 0; /* Force flexbox to calculate height properly */
+}
+
+/* Gemini-specific scrolling fixes */
+#threadly-panel[data-platform="gemini"] #threadly-message-list {
+    overflow-y: auto !important;
+    max-height: calc(100% - 120px) !important;
+    height: auto !important;
+    flex: 1 !important;
+}
+
+#threadly-panel[data-platform="gemini"] .threadly-content {
+    overflow: visible !important;
+    height: calc(100% - 50px) !important;
+}
+
+/* Force Gemini scrolling with higher specificity */
+body #threadly-panel[data-platform="gemini"] #threadly-message-list {
+    overflow-y: auto !important;
+    max-height: calc(100% - 120px) !important;
+    height: auto !important;
+    flex: 1 !important;
 }
 
 .threadly-message-item {
     padding: 12px;
     margin-bottom: 10px;
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-left: 4px solid var(--threadly-primary-accent);
     word-break: break-word;
     font-size: 0.9rem;
     transition: all 0.2s ease;
+    
+    /* Glass effect for message items */
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .threadly-message-item:hover {
@@ -247,6 +483,28 @@
 .threadly-message-text {
     white-space: pre-wrap;
     line-height: 1.5;
+    max-height: 4.5em; /* Show ~3 lines initially */
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.threadly-message-text.expanded {
+    max-height: none;
+}
+
+.threadly-read-more {
+    color: var(--threadly-primary-accent);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-top: 8px;
+    display: inline-block;
+    transition: color 0.2s ease;
+}
+
+.threadly-read-more:hover {
+    color: var(--threadly-text-primary);
+    text-decoration: underline;
 }
 
 .threadly-empty-state {
@@ -279,6 +537,17 @@
 /* Panel cursor */
 #threadly-panel {
     cursor: pointer;
+}
+
+/* SVG Glass Distortion Filter */
+#threadly-container::before {
+    content: '';
+    position: fixed;
+    top: -9999px;
+    left: -9999px;
+    width: 0;
+    height: 0;
+    z-index: -9999;
 }
 
 /* Responsive: Hide on mobile */

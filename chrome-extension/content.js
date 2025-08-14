@@ -1,61 +1,67 @@
 (function() {
     'use strict';
 
-    // --- Configuration --- //
-    // THIS SECTION HAS BEEN UPDATED
+    // --- Updated Configuration for 2024/2025 --- //
     const PLATFORM_CONFIG = {
         chatgpt: {
             name: 'ChatGPT',
-            chatContainer: 'main', // This is still correct
-            // UPDATED SELECTOR: This is more specific and targets the div containing the actual message text.
-            userSelector: 'div[data-message-author-role="user"] .text-base', 
+            chatContainer: 'main',
+            // Updated selectors for current ChatGPT structure
+            userSelector: 'div[data-message-author-role="user"] .whitespace-pre-wrap, div[data-message-author-role="user"] div[class*="prose"], div[data-message-author-role="user"] .text-base',
         },
         claude: {
             name: 'Claude',
-            chatContainer: '[data-testid="conversation-turn-list"]',
-            userSelector: 'div[data-testid="chat-user-message-content"]',
+            chatContainer: '[data-testid="conversation-turn-list"], main',
+            userSelector: 'div[data-testid="chat-user-message-content"], div[data-testid="user-message"]',
         },
         gemini: {
             name: 'Gemini',
-            chatContainer: '.conversation-container',
-            userSelector: '.query-text',
+            // Updated container selectors for current Gemini interface
+            chatContainer: 'main, .conversation-container, [role="main"], .chat-interface',
+            // Updated user selectors for current Gemini structure
+            userSelector: '.user-message, [data-role="user"], .query-text, div[class*="user"] p, .user-input-display',
         },
         grok: {
             name: 'Grok',
-            chatContainer: 'div[style*="flex-direction: column;"]',
-            userSelector: 'div.user-message',
+            chatContainer: 'div[style*="flex-direction: column;"], main',
+            userSelector: 'div.user-message, [data-role="user"]',
         },
         'ai-studio': {
             name: 'AI Studio',
-            chatContainer: '.chat-history',
-            userSelector: '.user-query',
+            chatContainer: '.chat-history, main',
+            userSelector: '.user-query, [data-role="user"]',
         },
         perplexity: {
             name: 'Perplexity',
-            // UPDATED CONTAINER: The main scrollable area is a more reliable target.
-            chatContainer: '#main', 
-            // UPDATED SELECTOR: Perplexity now wraps user requests in a div with a class containing "request".
-            userSelector: 'div[class*="request"] .prose',
+            // Updated container selectors for current Perplexity interface
+            chatContainer: 'main, #__next, .search-interface, [role="main"], .app-main',
+            // Updated user selectors for current Perplexity structure  
+            userSelector: '.user-query, [data-testid="search-query"], .search-input-value, div[class*="query"] span, .prose:has(p), input[type="text"]:not([class*="search"]):focus',
         },
         unknown: { name: 'Unknown' },
     };
 
-    // --- State --- //
+    // --- Enhanced State Management --- //
     let currentPlatformId = 'unknown';
-    let allMessages = []; // This will hold messages with their live element references
+    let allMessages = [];
     let observer = null;
-    let debouncedUpdate = debounce(updateAndSaveConversation, 500);
+    let debouncedUpdate = debounce(updateAndSaveConversation, 750); // Increased debounce
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
 
     // --- DOM Elements --- //
     let container, panel, closeButton, messageList, searchInput, platformIndicator;
 
-    // --- Platform Detection --- //
+    // --- Enhanced Platform Detection --- //
     function detectPlatform() {
         const hostname = window.location.hostname;
-        // Added www.perplexity.ai as a potential hostname
+        const pathname = window.location.pathname;
+        
+        console.log('Threadly: Detecting platform for', hostname, pathname);
+        
         const platformMap = {
             'chat.openai.com': 'chatgpt',
-            'chatgpt.com': 'chatgpt', // Explicitly handle the new domain
+            'chatgpt.com': 'chatgpt',
             'claude.ai': 'claude',
             'gemini.google.com': 'gemini',
             'grok.com': 'grok',
@@ -64,16 +70,26 @@
             'perplexity.ai': 'perplexity',
             'www.perplexity.ai': 'perplexity'
         };
+        
         for (const domain in platformMap) {
             if (hostname.includes(domain)) {
+                console.log('Threadly: Platform detected:', platformMap[domain]);
                 return platformMap[domain];
             }
         }
+        
+        console.log('Threadly: Unknown platform');
         return 'unknown';
     }
 
-    // --- UI Injection (No changes here) --- //
+    // --- Enhanced UI Injection --- //
     function injectUI() {
+        // Remove any existing instances
+        const existing = document.getElementById('threadly-container');
+        if (existing) {
+            existing.remove();
+        }
+
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.type = 'text/css';
@@ -84,6 +100,7 @@
         container.id = 'threadly-container';
         container.innerHTML = `
             <div id="threadly-panel" class="threadly-edge-panel">
+                <div class="threadly-tint-layer"></div>
                 <div class="threadly-tab-content">
                     <span class="threadly-brand">threadly</span>
                 </div>
@@ -101,7 +118,11 @@
                 </div>
             </div>
         `;
+        
         document.body.appendChild(container);
+
+        // Inject SVG glass distortion filter
+        injectGlassFilter();
 
         panel = document.getElementById('threadly-panel');
         closeButton = panel.querySelector('.threadly-close');
@@ -109,11 +130,106 @@
         searchInput = panel.querySelector('#threadly-search-input');
         platformIndicator = panel.querySelector('.threadly-platform-indicator');
         platformIndicator.textContent = PLATFORM_CONFIG[currentPlatformId].name;
+        platformIndicator.setAttribute('data-platform', currentPlatformId);
+        
+        // Add platform data attribute to panel for CSS targeting
+        panel.setAttribute('data-platform', currentPlatformId);
+        
+        // Platform-specific positioning adjustments
+        adjustUIForPlatform();
         
         addEventListeners();
+        
+        console.log('Threadly: UI injected successfully');
     }
 
-    // --- Event Listeners (No changes here) --- //
+    // --- Glass Filter Injection --- //
+    function injectGlassFilter() {
+        // Remove any existing glass filter
+        const existingFilter = document.getElementById('threadly-glass-filter');
+        if (existingFilter) {
+            existingFilter.remove();
+        }
+
+        // Create SVG element with glass distortion filter
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.id = 'threadly-glass-filter';
+        svg.style.position = 'absolute';
+        svg.style.overflow = 'hidden';
+        svg.style.width = '0';
+        svg.style.height = '0';
+        svg.style.top = '-9999px';
+        svg.style.left = '-9999px';
+        svg.style.zIndex = '-9999';
+        
+        svg.innerHTML = `
+            <defs>
+                <filter id="glass-distortion" x="0%" y="0%" width="100%" height="100%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.008 0.008" numOctaves="1" seed="92" result="noise" />
+                    <feGaussianBlur in="noise" stdDeviation="1" result="blurred" />
+                    <feDisplacementMap in="SourceGraphic" in2="blurred" scale="77" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+            </defs>
+        `;
+        
+        document.body.appendChild(svg);
+        console.log('Threadly: Glass distortion filter injected');
+    }
+
+    // --- Platform-Specific UI Adjustments --- //
+    function adjustUIForPlatform() {
+        if (currentPlatformId === 'gemini') {
+            // Fix positioning issues for Gemini
+            panel.style.zIndex = '9999';
+            panel.style.position = 'fixed';
+            panel.style.top = '20vh';
+            panel.style.right = '5px';
+            
+            // Force scrolling fixes on Gemini
+            setTimeout(() => {
+                const messageList = document.getElementById('threadly-message-list');
+                const content = document.querySelector('.threadly-content');
+                
+                if (messageList) {
+                    messageList.style.cssText = `
+                        overflow-y: auto !important;
+                        max-height: calc(100% - 120px) !important;
+                        height: auto !important;
+                        flex: 1 !important;
+                    `;
+                }
+                
+                if (content) {
+                    content.style.cssText = `
+                        overflow: visible !important;
+                        height: calc(100% - 50px) !important;
+                    `;
+                }
+                
+                console.log('Threadly: Applied Gemini-specific scrolling fixes');
+                
+                // Set up continuous monitoring for Gemini
+                if (currentPlatformId === 'gemini') {
+                    setInterval(() => {
+                        if (messageList && messageList.style.overflowY !== 'auto') {
+                            messageList.style.cssText = `
+                                overflow-y: auto !important;
+                                max-height: calc(100% - 120px) !important;
+                                height: auto !important;
+                                flex: 1 !important;
+                            `;
+                        }
+                    }, 2000);
+                }
+            }, 100);
+        } else if (currentPlatformId === 'perplexity') {
+            // Ensure proper visibility on Perplexity
+            panel.style.zIndex = '10000';
+            panel.style.right = '10px';
+        }
+    }
+
+    // --- Event Listeners --- //
     function addEventListeners() {
         panel.addEventListener('click', (e) => {
             if (e.target.closest('.threadly-close') || e.target.closest('#threadly-search-input') || e.target.closest('.threadly-message-item')) {
@@ -156,61 +272,141 @@
         }
     }
 
-    // --- Storage Functions (No changes here) --- //
+    // --- Enhanced Storage Functions --- //
     function getStorageKey() {
-        return `threadly_${currentPlatformId}_${window.location.pathname}`;
+        const key = `threadly_${currentPlatformId}_${window.location.pathname}`;
+        console.log('Threadly: Storage key:', key);
+        return key;
     }
 
     async function saveMessagesToStorage(messages) {
-        const key = getStorageKey();
-        const storableMessages = messages.map(msg => ({ content: msg.content }));
-        if (storableMessages.length > 0) {
-            await chrome.storage.local.set({ [key]: storableMessages });
+        try {
+            const key = getStorageKey();
+            const storableMessages = messages.map(msg => ({ 
+                content: msg.content,
+                timestamp: Date.now()
+            }));
+            
+            if (storableMessages.length > 0) {
+                await chrome.storage.local.set({ [key]: storableMessages });
+                console.log('Threadly: Saved', storableMessages.length, 'messages for', currentPlatformId);
+            }
+        } catch (error) {
+            console.error('Threadly: Storage save error:', error);
         }
     }
 
     async function loadMessagesFromStorage() {
-        const key = getStorageKey();
-        const data = await chrome.storage.local.get(key);
-        return data[key] || [];
+        try {
+            const key = getStorageKey();
+            const data = await chrome.storage.local.get(key);
+            const messages = data[key] || [];
+            console.log('Threadly: Loaded', messages.length, 'messages for', currentPlatformId);
+            return messages;
+        } catch (error) {
+            console.error('Threadly: Storage load error:', error);
+            return [];
+        }
     }
 
-    // --- Chat Extraction (No changes here) --- //
+    // --- Enhanced Chat Extraction --- //
     function extractUserConversation() {
         const config = PLATFORM_CONFIG[currentPlatformId];
         const extracted = [];
-        if (!config.userSelector) return [];
+        
+        if (!config.userSelector) {
+            console.log('Threadly: No user selector for platform:', currentPlatformId);
+            return [];
+        }
 
-        const userElements = document.querySelectorAll(config.userSelector);
+        console.log('Threadly: Extracting messages with selector:', config.userSelector);
 
-        userElements.forEach(userEl => {
-            const text = userEl.innerText.trim();
-            if (text) {
-                extracted.push({
-                    role: 'user',
-                    content: text,
-                    element: userEl
+        // Try multiple selectors (comma-separated)
+        const selectors = config.userSelector.split(',').map(s => s.trim());
+        
+        for (const selector of selectors) {
+            try {
+                const userElements = document.querySelectorAll(selector);
+                console.log('Threadly: Found', userElements.length, 'elements with selector:', selector);
+                
+                userElements.forEach((userEl, index) => {
+                    let text = '';
+                    
+                    // Try different text extraction methods
+                    if (userEl.textContent) {
+                        text = userEl.textContent.trim();
+                    } else if (userEl.innerText) {
+                        text = userEl.innerText.trim();
+                    } else if (userEl.value) {
+                        text = userEl.value.trim();
+                    }
+                    
+                    if (text && text.length > 2) { // Minimum length check
+                        console.log('Threadly: Extracted message', index + 1, ':', text.substring(0, 50) + '...');
+                        extracted.push({
+                            role: 'user',
+                            content: text,
+                            element: userEl
+                        });
+                    }
                 });
+                
+                if (extracted.length > 0) {
+                    break; // Found messages, no need to try other selectors
+                }
+            } catch (error) {
+                console.warn('Threadly: Error with selector', selector, ':', error);
             }
-        });
+        }
+        
+        console.log('Threadly: Total extracted messages:', extracted.length);
         return extracted;
     }
 
-    // --- Rendering (No changes here) --- //
+    // --- Enhanced Rendering --- //
     function renderMessages(messagesToRender) {
         if (!messageList) return;
+        
         messageList.innerHTML = '';
+        
         if (messagesToRender.length === 0) {
-            messageList.innerHTML = '<div class="threadly-empty-state">No user prompts found or saved.</div>';
+            messageList.innerHTML = '<div class="threadly-empty-state">No user prompts found. Try interacting with the chat first.</div>';
             return;
         }
+        
         const fragment = document.createDocumentFragment();
-        messagesToRender.forEach(msg => {
+        messagesToRender.forEach((msg, index) => {
             const item = document.createElement('div');
             item.className = 'threadly-message-item';
             item.dataset.role = 'user';
-            item.innerHTML = `<div class="threadly-message-role">You</div><div class="threadly-message-text">${escapeHTML(msg.content)}</div>`;
+            
+            // Check if message is longer than 10 words
+            const wordCount = msg.content.trim().split(/\s+/).length;
+            const isLongMessage = wordCount > 10;
+            
+            item.innerHTML = `
+                <div class="threadly-message-role">You (#${index + 1})</div>
+                <div class="threadly-message-text">${escapeHTML(msg.content)}</div>
+                ${isLongMessage ? '<div class="threadly-read-more">See More</div>' : ''}
+            `;
 
+            // Add read more functionality
+            if (isLongMessage) {
+                const readMoreBtn = item.querySelector('.threadly-read-more');
+                const messageText = item.querySelector('.threadly-message-text');
+                
+                readMoreBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (messageText.classList.contains('expanded')) {
+                        messageText.classList.remove('expanded');
+                        readMoreBtn.textContent = 'See More';
+                    } else {
+                        messageText.classList.add('expanded');
+                        readMoreBtn.textContent = 'See Less';
+                    }
+                });
+            }
+            
             if (msg.element && document.body.contains(msg.element)) {
                 item.style.cursor = 'pointer';
                 item.title = 'Click to scroll to message';
@@ -232,40 +428,88 @@
     
     function filterMessages(query) {
         query = query.trim().toLowerCase();
-        const filtered = !query ? allMessages : allMessages.filter(m => m.content.toLowerCase().includes(query));
+        const filtered = !query ? allMessages : allMessages.filter(m => 
+            m.content.toLowerCase().includes(query)
+        );
         renderMessages(filtered);
     }
 
-    // --- Main Update Logic (No changes here) --- //
+    // --- Enhanced Update Logic --- //
     function updateAndSaveConversation() {
+        console.log('Threadly: Updating conversation for', currentPlatformId);
+        
         const currentMessages = extractUserConversation();
         
         if (currentMessages.length > 0) {
             allMessages = currentMessages;
             saveMessagesToStorage(currentMessages);
+            console.log('Threadly: Updated with', currentMessages.length, 'messages');
+        } else {
+            console.log('Threadly: No messages found during update');
         }
         
-        if (panel.classList.contains('threadly-expanded')) {
+        if (panel && panel.classList.contains('threadly-expanded')) {
             filterMessages(searchInput.value);
         }
     }
 
+    // --- Enhanced Observer with Retry Logic --- //
     function startObserver() {
-        if (observer) observer.disconnect();
-        const config = PLATFORM_CONFIG[currentPlatformId];
-        const targetNode = document.querySelector(config.chatContainer);
-        if (!targetNode) {
-            // Increased timeout for slower loading pages
-            setTimeout(startObserver, 3000); 
-            return;
+        if (observer) {
+            observer.disconnect();
         }
-        observer = new MutationObserver(() => debouncedUpdate());
-        observer.observe(targetNode, { childList: true, subtree: true });
         
+        const config = PLATFORM_CONFIG[currentPlatformId];
+        const containerSelectors = config.chatContainer.split(',').map(s => s.trim());
+        
+        let targetNode = null;
+        
+        // Try each container selector
+        for (const selector of containerSelectors) {
+            targetNode = document.querySelector(selector);
+            if (targetNode) {
+                console.log('Threadly: Found container with selector:', selector);
+                break;
+            }
+        }
+        
+        if (!targetNode) {
+            retryCount++;
+            if (retryCount < MAX_RETRIES) {
+                console.log('Threadly: Container not found, retrying in 3s... (attempt', retryCount, '/', MAX_RETRIES, ')');
+                setTimeout(startObserver, 3000);
+                return;
+            } else {
+                console.error('Threadly: Could not find container after', MAX_RETRIES, 'attempts');
+                return;
+            }
+        }
+        
+        console.log('Threadly: Starting MutationObserver on:', targetNode);
+        
+        observer = new MutationObserver((mutations) => {
+            const hasRelevantChanges = mutations.some(mutation => 
+                mutation.type === 'childList' && 
+                (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0)
+            );
+            
+            if (hasRelevantChanges) {
+                debouncedUpdate();
+            }
+        });
+        
+        observer.observe(targetNode, { 
+            childList: true, 
+            subtree: true,
+            attributes: false // Reduce noise
+        });
+        
+        // Initial update
         debouncedUpdate();
+        retryCount = 0; // Reset retry count on success
     }
 
-    // --- Utilities (No changes here) --- //
+    // --- Utilities --- //
     function debounce(func, delay) {
         let timeout;
         return function(...args) {
@@ -273,36 +517,69 @@
             timeout = setTimeout(() => func.apply(this, args), delay);
         };
     }
+    
     function escapeHTML(str) {
         const p = document.createElement('p');
         p.textContent = str;
         return p.innerHTML;
     }
 
-    // --- Initialization (No changes here) --- //
+    // --- Enhanced Initialization --- //
     async function init() {
+        console.log('Threadly: Initializing...');
+        
         currentPlatformId = detectPlatform();
-        if (currentPlatformId === 'unknown') return;
-        
-        injectUI();
-        
-        const savedMessages = await loadMessagesFromStorage();
-        // Combine saved messages with a fresh scan to get element references
-        const liveMessages = extractUserConversation();
-        
-        // A simple way to merge: use live if available, otherwise use saved content
-        allMessages = liveMessages.length > 0 ? liveMessages : savedMessages.map(m => ({ content: m.content, element: null }));
-
-        if (panel.classList.contains('threadly-expanded')) {
-             renderMessages(allMessages);
+        if (currentPlatformId === 'unknown') {
+            console.log('Threadly: Unknown platform, exiting');
+            return;
         }
+        
+        // Wait a bit more for dynamic platforms
+        if (currentPlatformId === 'perplexity' || currentPlatformId === 'gemini') {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        try {
+            injectUI();
+            
+            const savedMessages = await loadMessagesFromStorage();
+            const liveMessages = extractUserConversation();
+            
+            // Prefer live messages if available, otherwise use saved
+            allMessages = liveMessages.length > 0 ? liveMessages : 
+                        savedMessages.map(m => ({ content: m.content, element: null }));
 
-        startObserver();
+            if (panel && panel.classList.contains('threadly-expanded')) {
+                renderMessages(allMessages);
+            }
+
+            startObserver();
+            
+            console.log('Threadly: Initialization complete for', currentPlatformId);
+            
+        } catch (error) {
+            console.error('Threadly: Initialization error:', error);
+        }
     }
 
+    // --- Enhanced Ready State Handling --- //
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(init, 1000); // Extra delay for SPA loading
+        });
     } else {
-        init();
+        setTimeout(init, 1000); // Extra delay for SPA loading
     }
+    
+    // Handle SPA navigation
+    let lastUrl = location.href;
+    new MutationObserver(() => {
+        const url = location.href;
+        if (url !== lastUrl) {
+            lastUrl = url;
+            console.log('Threadly: URL changed, re-initializing...');
+            setTimeout(init, 2000); // Re-initialize on navigation
+        }
+    }).observe(document, { subtree: true, childList: true });
+
 })();
