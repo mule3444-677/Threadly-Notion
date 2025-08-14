@@ -1,15 +1,28 @@
-/* --- Liquid Glass & Core Variables --- */
+/* --- Core Variables --- */
 :root {
-    --threadly-frost-blur: 10px;
-    --threadly-tint-color: 255, 255, 255;
-    --threadly-tint-opacity: 0.15;
-    --threadly-inner-shadow: inset 0px 1px 12px -5px rgba(255, 255, 255, 0.7);
-    --threadly-outer-shadow: 0px 8px 24px rgba(0, 0, 0, 0.2);
-    --threadly-border: 1px solid rgba(255, 255, 255, 0.2);
-    --threadly-radius: 20px;
+    --threadly-bg-color: #2a2a2a;
+    --threadly-border-color: #444;
     --threadly-text-primary: #f0f0f0;
     --threadly-text-secondary: #c0c0c0;
     --threadly-primary-accent: #00bfae;
+}
+
+/* --- Borel Font for Brand --- */
+@font-face {
+    font-family: "Borel";
+    src: url("Borel/Borel-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+.threadly-brand {
+    font-family: "Borel", cursive;
+    font-weight: 400;
+    font-style: normal;
+    display: flex;
+    align-items: center;
+    line-height: 1;
 }
 
 /* --- The main container for positioning and dragging --- */
@@ -18,98 +31,108 @@
     right: 5px;
     bottom: 20px;
     z-index: 2147483640;
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
 }
 
-/* --- Base Glass Style --- */
-.threadly-glass {
-    background-color: rgba(var(--threadly-tint-color), var(--threadly-tint-opacity));
-    backdrop-filter: blur(var(--threadly-frost-blur));
-    -webkit-backdrop-filter: blur(var(--threadly-frost-blur));
-    box-shadow: var(--threadly-inner-shadow), var(--threadly-outer-shadow);
-    border-radius: var(--threadly-radius);
-    border: var(--threadly-border);
-    isolation: isolate;
-    color: var(--threadly-text-primary);
-    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-}
-
-/* --- Collapsed Tab --- */
-#threadly-sidebar {
-    width: 50px;
-    height: 150px;
+/* --- Unified Edge Panel --- */
+#threadly-panel {
+    position: fixed;
+    right: 0;
+    top: 10vh;
+    height: 105px;
+    width: 35px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 0.07px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px 0 0 18px;
+    cursor: pointer;
+    z-index: 2147483640;
+    transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: grab;
-    transition: all 400ms cubic-bezier(0.4, 0, 0.2, 1);
-    transform: scale(1);
-    opacity: 1;
-}
-#threadly-sidebar:hover {
-    background-color: rgba(var(--threadly-tint-color), 0.25);
-    transform: scale(1.05);
-}
-#threadly-sidebar.threadly-dragging {
-    cursor: grabbing;
-    transform: scale(1.1);
+    color: var(--threadly-text-primary);
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    transform-origin: right center;
+    max-height: 105px;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
+/* Expanded State - Always expands upward from current position */
+#threadly-panel.threadly-expanded {
+    width: 320px;
+    height: 480px;
+    max-height: 70vh;
+    background: var(--threadly-bg-color);
+    border: 1px solid var(--threadly-border-color);
+    border-radius: 20px;
+    cursor: default;
+    transform: scale(1);
+    overflow: hidden;
+    /* Position will be set dynamically by JavaScript to expand upward */
+}
+
+
+
+/* Tab Content (visible when collapsed) */
 .threadly-tab-content {
     font-weight: 600;
-    font-size: 1rem;
-    pointer-events: none; /* Make text non-interactive for easier dragging */
-    transform: rotate(90deg);
+    font-size: 1.12rem;
+    color: var(--threadly-text-primary);
     white-space: nowrap;
-}
-
-/* --- Expanded Pop-out Panel --- */
-#threadly-panel {
-    width: 360px;
-    height: 550px;
-    max-height: 70vh;
     display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    transform-origin: bottom right;
-    transition: all 400ms cubic-bezier(0.4, 0, 0.2, 1);
-    transform: scale(0.8);
-    opacity: 0;
-    pointer-events: none;
-    position: absolute;
-    right: 0;
-    bottom: 0;
-}
-#threadly-container.threadly-expanded #threadly-panel {
-    transform: scale(1);
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    position: relative;
+    margin: 0;
+    margin-right: -10px;
     opacity: 1;
-    pointer-events: auto;
+    transform: rotate(-90deg);
+    min-height: 105px;
+    flex-shrink: 0;
 }
-/* Hide the tab when panel is open */
-#threadly-container.threadly-expanded #threadly-sidebar {
-    transform: scale(0.8);
+
+/* Hide tab content when expanded */
+#threadly-panel.threadly-expanded .threadly-tab-content {
     opacity: 0;
+    transform: rotate(-90deg);
     pointer-events: none;
 }
 
-/* --- Panel Internals --- */
+/* Panel Header (hidden when collapsed) */
 .threadly-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 18px;
+    padding: 8px 18px;
     flex-shrink: 0;
-    border-bottom: var(--threadly-border);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+    transition: all 0.3s ease;
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
 }
+
+#threadly-panel.threadly-expanded .threadly-header {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
 .threadly-header h3 {
     margin: 0;
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     display: flex;
     align-items: center;
     gap: 8px;
+    line-height: 1;
 }
+
 .threadly-platform-indicator {
     font-size: 0.75rem;
     padding: 3px 8px;
@@ -118,7 +141,13 @@
     color: #111;
     font-weight: 700;
     text-transform: capitalize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    height: fit-content;
 }
+
 .threadly-close {
     background: none;
     border: none;
@@ -127,36 +156,57 @@
     line-height: 1;
     cursor: pointer;
     padding: 0 4px;
-    transition: color 200ms;
+    transition: color 0.2s ease;
 }
+
 .threadly-close:hover {
     color: var(--threadly-text-primary);
 }
+
+/* Panel Content (hidden when collapsed) */
 .threadly-content {
     flex-grow: 1;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+    transition: all 0.3s ease;
+    pointer-events: none;
+    position: absolute;
+    top: 50px;
+    left: 0;
+    right: 0;
+    bottom: 0;
 }
+
+#threadly-panel.threadly-expanded .threadly-content {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
 .threadly-search-container {
     padding: 12px 18px;
-    border-bottom: var(--threadly-border);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
+
 #threadly-search-input {
     width: 100%;
     padding: 10px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(0, 0, 0, 0.2);
     color: var(--threadly-text-primary);
     font-size: 0.95rem;
     outline: none;
-    transition: all 0.2s;
+    transition: all 0.3s ease;
 }
+
 #threadly-search-input:focus {
     border-color: var(--threadly-primary-accent);
     background: rgba(0, 0, 0, 0.3);
-    box-shadow: 0 0 0 3px rgba(0, 191, 174, 0.3);
+    transform: scale(1.02);
 }
 
 #threadly-message-list {
@@ -164,19 +214,28 @@
     overflow-y: auto;
     padding: 8px 12px 8px 18px;
 }
+
 .threadly-message-item {
     padding: 12px;
     margin-bottom: 10px;
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.2);
     border: 1px solid transparent;
     border-left: 4px solid var(--threadly-primary-accent);
     word-break: break-word;
     font-size: 0.9rem;
+    transition: all 0.2s ease;
 }
+
+.threadly-message-item:hover {
+    background: rgba(0, 0, 0, 0.3);
+    transform: translateX(2px);
+}
+
 .threadly-message-item[data-role="assistant"] {
     border-left-color: #888;
 }
+
 .threadly-message-role {
     font-weight: 700;
     font-size: 0.75rem;
@@ -184,10 +243,12 @@
     color: var(--threadly-text-secondary);
     margin-bottom: 5px;
 }
+
 .threadly-message-text {
     white-space: pre-wrap;
     line-height: 1.5;
 }
+
 .threadly-empty-state {
     text-align: center;
     color: var(--threadly-text-secondary);
@@ -198,17 +259,26 @@
 #threadly-message-list::-webkit-scrollbar {
   width: 8px;
 }
+
 #threadly-message-list::-webkit-scrollbar-track {
   background: transparent;
 }
+
 #threadly-message-list::-webkit-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.2);
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: padding-box;
+  transition: background-color 0.2s ease;
 }
+
 #threadly-message-list::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Panel cursor */
+#threadly-panel {
+    cursor: pointer;
 }
 
 /* Responsive: Hide on mobile */

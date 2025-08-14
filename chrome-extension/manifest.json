@@ -8,6 +8,7 @@
     {
       "matches": [
         "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
         "https://claude.ai/*",
         "https://gemini.google.com/*",
         "https://grok.com/*",
@@ -21,9 +22,10 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["sidebar.css"],
+      "resources": ["sidebar.css", "Borel/Borel-Regular.ttf"],
       "matches": [
         "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
         "https://claude.ai/*",
         "https://gemini.google.com/*",
         "https://grok.com/*",
