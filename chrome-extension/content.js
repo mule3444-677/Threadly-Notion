@@ -53,9 +53,10 @@
     let allMessages = [];
     let observer = null;
     let debouncedUpdate = debounce(updateConversation, 500);
+    let isDragging = false; // Add global dragging flag
 
     // --- DOM Elements --- //
-    let container, panel, sidebar, closeButton, messageList, searchInput, platformIndicator;
+    let container, panel, sidebar, closeButton, exportButton, messageList, searchInput, platformIndicator;
 
     // --- Platform Detection --- //
     function detectPlatform() {
@@ -80,6 +81,19 @@
         link.type = 'text/css';
         link.href = chrome.runtime.getURL('sidebar.css');
         document.head.appendChild(link);
+        
+        // Inject SVG Filter for Glass Effect
+        const svgFilter = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute; overflow:hidden">
+                <defs>
+                    <filter id="threadly-glass-distortion">
+                        <feTurbulence type="fractalNoise" baseFrequency="0.01 0.04" numOctaves="1" seed="2" result="noise" />
+                        <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" />
+                    </filter>
+                </defs>
+            </svg>
+        `;
+        document.body.insertAdjacentHTML('beforeend', svgFilter);
 
         // Main container
         container = document.createElement('div');
@@ -91,7 +105,10 @@
             <div id="threadly-panel" class="threadly-glass">
                 <div class="threadly-header">
                     <h3>Threadly <span class="threadly-platform-indicator"></span></h3>
-                    <button class="threadly-close">×</button>
+                    <div class="threadly-actions">
+                        <button id="threadly-export-btn" class="threadly-button">Export</button>
+                        <button class="threadly-close">×</button>
+                    </div>
                 </div>
                 <div class="threadly-content">
                     <div class="threadly-search-container">
@@ -114,6 +131,7 @@
         panel = document.getElementById('threadly-panel');
         sidebar = document.getElementById('threadly-sidebar');
         closeButton = panel.querySelector('.threadly-close');
+        exportButton = document.getElementById('threadly-export-btn');
         messageList = panel.querySelector('#threadly-message-list');
         searchInput = panel.querySelector('#threadly-search-input');
         platformIndicator = panel.querySelector('.threadly-platform-indicator');
@@ -124,9 +142,11 @@
     }
 
     function addEventListeners() {
-        sidebar.addEventListener('click', () => togglePanel(true));
+        sidebar.addEventListener('click', () => { if (!isDragging) togglePanel(true); });
         closeButton.addEventListener('click', () => togglePanel(false));
+        exportButton.addEventListener('click', exportConversation);
         searchInput.addEventListener('input', (e) => filterMessages(e.target.value));
+        messageList.addEventListener('click', handleMessageClick);
         
         // Click outside to close
         document.addEventListener('click', handleClickOutside);
@@ -134,18 +154,37 @@
         // Prevent clicks inside panel from closing it
         panel.addEventListener('click', (e) => e.stopPropagation());
         
-        makeDraggable(sidebar, container);
+        makeDraggable(container); // Drag the whole container now
     }
     
-    function handleClickOutside(e) {
-        if (container.classList.contains('threadly-expanded') && 
-            !container.contains(e.target)) {
-            togglePanel(false);
-        }
-    }
-    
+    // --- UI Interaction & Features --- //
+
+    // **MAJOR UPDATE**: Smart expansion logic
     function togglePanel(expand) {
         if (expand) {
+            // 1. Get measurements
+            const containerRect = container.getBoundingClientRect();
+            const panelHeight = panel.offsetHeight;
+            const viewportHeight = window.innerHeight;
+
+            // 2. Calculate available space
+            const spaceAbove = containerRect.top;
+            const spaceBelow = viewportHeight - containerRect.bottom;
+
+            // 3. Decide expansion direction
+            panel.classList.remove('expand-up', 'expand-down');
+            
+            if (spaceBelow >= panelHeight) {
+                // Prefer expanding down if there's enough space
+                panel.classList.add('expand-down');
+            } else if (spaceAbove >= panelHeight) {
+                // Otherwise, expand up if there's enough space
+                panel.classList.add('expand-up');
+            } else {
+                // Fallback: not enough space either way, expand down by default
+                panel.classList.add('expand-down');
+            }
+
             container.classList.add('threadly-expanded');
             updateConversation();
         } else {
@@ -153,71 +192,116 @@
         }
     }
     
-    // --- Draggable Logic --- //
-    function makeDraggable(handle, elementToDrag) {
-        let startY, startTop, isDragging = false;
+    function handleClickOutside(e) {
+        if (container.classList.contains('threadly-expanded') && !container.contains(e.target)) {
+            togglePanel(false);
+        }
+    }
+
+    function handleMessageClick(e) {
+        const item = e.target.closest('.threadly-message-item');
+        if (!item) return;
+        
+        const text = item.querySelector('.threadly-message-text').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            item.classList.add('copied');
+            setTimeout(() => item.classList.remove('copied'), 1500);
+        });
+    }
+    
+    function exportConversation() {
+        if (allMessages.length === 0) {
+            alert('No conversation to export.');
+            return;
+        }
+        
+        const json = JSON.stringify(allMessages, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `threadly-export-${currentPlatformId.replace(/[^a-z0-9]/gi, '-')}-${new Date().toISOString()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // **IMPROVED**: Draggable Logic for X & Y with click/drag separation
+    function makeDraggable(elementToDrag) {
+        const handle = elementToDrag; // The whole container is the handle now
+        let startX, startY, startLeft, startTop;
+        let dragTimeout;
 
         function onPointerDown(e) {
-            // Prevent drag on right-click or if it's not the primary handle
-            if (e.button !== 0 || e.target !== handle) return;
+            if (e.target.closest('#threadly-panel')) return; // Don't drag if clicking the panel
+            if (e.button !== 0) return;
             
             e.preventDefault();
             e.stopPropagation();
             
-            isDragging = true;
-            handle.classList.add('threadly-dragging');
+            isDragging = false;
             handle.setPointerCapture(e.pointerId);
 
+            startX = e.clientX;
             startY = e.clientY;
-            startTop = elementToDrag.offsetTop;
+            const rect = elementToDrag.getBoundingClientRect();
+            startLeft = rect.left;
+            startTop = rect.top;
+
+            dragTimeout = setTimeout(() => {
+                isDragging = true;
+                handle.classList.add('threadly-dragging');
+            }, 150); // >150ms press is a drag
 
             document.addEventListener('pointermove', onPointerMove);
             document.addEventListener('pointerup', onPointerUp, { once: true });
         }
 
         function onPointerMove(e) {
-            if (!isDragging) return;
+            if (!handle.hasPointerCapture(e.pointerId)) return;
             
-            e.preventDefault();
-            const dy = e.clientY - startY;
-            const newTop = startTop + dy;
-
-            // Constrain movement within viewport (vertical only)
-            const maxTop = window.innerHeight - elementToDrag.offsetHeight;
-            const constrainedTop = Math.max(0, Math.min(newTop, maxTop));
-            
-            elementToDrag.style.top = `${constrainedTop}px`;
-            elementToDrag.style.bottom = 'auto'; // override bottom positioning
+            if (isDragging) {
+                e.preventDefault();
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                const newLeft = startLeft + dx;
+                const newTop = startTop + dy;
+                elementToDrag.style.left = `${Math.max(0, Math.min(newLeft, window.innerWidth - elementToDrag.offsetWidth))}px`;
+                elementToDrag.style.top = `${Math.max(0, Math.min(newTop, window.innerHeight - elementToDrag.offsetHeight))}px`;
+                elementToDrag.style.right = 'auto';
+                elementToDrag.style.bottom = 'auto';
+            }
         }
 
         function onPointerUp(e) {
-            if (!isDragging) return;
-            
-            isDragging = false;
+            clearTimeout(dragTimeout);
             handle.classList.remove('threadly-dragging');
-            handle.releasePointerCapture(e.pointerId);
+            if(handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
             document.removeEventListener('pointermove', onPointerMove);
 
-            // Save position
-            const finalPosition = elementToDrag.style.top;
-            chrome.storage.local.set({ threadlyPosition: finalPosition });
+            if (isDragging) {
+                const finalPosition = { top: elementToDrag.style.top, left: elementToDrag.style.left };
+                chrome.storage.local.set({ threadlyPosition: finalPosition });
+            }
+            // Reset isDragging after a short delay to ensure click event fires correctly
+            setTimeout(() => { isDragging = false; }, 50);
         }
 
         handle.addEventListener('pointerdown', onPointerDown);
     }
-
+    
     async function applySavedPosition() {
         try {
             const data = await chrome.storage.local.get('threadlyPosition');
             if (data.threadlyPosition && container) {
-                container.style.top = data.threadlyPosition;
+                container.style.top = data.threadlyPosition.top;
+                container.style.left = data.threadlyPosition.left;
+                container.style.right = 'auto';
                 container.style.bottom = 'auto';
             }
         } catch (error) {
             console.log('Threadly: Could not restore position');
         }
     }
-
 
     // --- Chat Extraction & Rendering (Unchanged) --- //
     function extractConversation() {
