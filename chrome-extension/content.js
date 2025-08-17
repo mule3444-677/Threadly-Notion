@@ -165,9 +165,9 @@
         svg.innerHTML = `
             <defs>
                 <filter id="glass-distortion" x="0%" y="0%" width="100%" height="100%">
-                    <feTurbulence type="fractalNoise" baseFrequency="0.008 0.008" numOctaves="1" seed="92" result="noise" />
+                    <feTurbulence type="fractalNoise" baseFrequency="0.0007 0.0007" numOctaves="1" seed="92" result="noise" />
                     <feGaussianBlur in="noise" stdDeviation="1" result="blurred" />
-                    <feDisplacementMap in="SourceGraphic" in2="blurred" scale="77" xChannelSelector="R" yChannelSelector="G" />
+                    <feDisplacementMap in="SourceGraphic" in2="blurred" scale="35" xChannelSelector="R" yChannelSelector="G" />
                 </filter>
             </defs>
         `;
@@ -415,7 +415,7 @@
                     
                     const originalBg = msg.element.style.backgroundColor;
                     msg.element.style.transition = 'background-color 0.3s ease';
-                    msg.element.style.backgroundColor = 'rgba(0, 191, 174, 0.2)';
+                    msg.element.style.backgroundColor = getPlatformHighlightColor();
                     setTimeout(() => {
                         msg.element.style.backgroundColor = originalBg;
                     }, 1500);
@@ -516,6 +516,18 @@
             clearTimeout(timeout);
             timeout = setTimeout(() => func.apply(this, args), delay);
         };
+    }
+    
+    function getPlatformHighlightColor() {
+        const platformColors = {
+            'chatgpt': 'rgba(255, 255, 255, 0.2)',
+            'gemini': 'rgba(66, 133, 244, 0.2)',
+            'claude': 'rgba(255, 107, 53, 0.2)',
+            'ai-studio': 'rgba(66, 133, 244, 0.2)',
+            'perplexity': 'rgba(20, 184, 166, 0.2)',
+            'grok': 'rgba(31, 41, 55, 0.2)'
+        };
+        return platformColors[currentPlatformId] || 'rgba(0, 191, 174, 0.2)';
     }
     
     function escapeHTML(str) {

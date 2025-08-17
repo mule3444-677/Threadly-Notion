@@ -56,16 +56,14 @@
     cursor: pointer;
     z-index: 2147483640;
     transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-    overflow: hidden;
+    overflow: visible; /* Remove scrolling from collapsed state */
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--threadly-text-primary);
     font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
     transform-origin: right center;
-    max-height: 105px;
-    overflow-y: auto;
-    overflow-x: hidden;
+    /* Remove max-height, overflow-y, overflow-x */
     
     /* Glass effect layering */
     isolation: isolate;
@@ -264,10 +262,11 @@
 
 /* Nudge Borel down a hair to match the pill's visual center */
 #threadly-panel.threadly-expanded .threadly-header .threadly-brand {
-  line-height: 1 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  transform: translateY(2px) !important; /* adjust 1–3px to taste */
+  position: relative !important;
+  top: 7px !important;
+  line-height: 0.8 !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
 }
 
 /* Keep platform pill centered too */
@@ -317,13 +316,15 @@
 }
 
 .threadly-platform-indicator[data-platform="perplexity"] {
-    background-color: var(--threadly-primary-accent);
-    color: #111;
+    background: linear-gradient(135deg, #14b8a6, #0d9488);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .threadly-platform-indicator[data-platform="grok"] {
-    background-color: var(--threadly-primary-accent);
-    color: #111;
+    background: linear-gradient(135deg, #1f2937, #374151);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .threadly-platform-indicator[data-platform="claude"] {
@@ -415,6 +416,31 @@
     transform: scale(1.02);
 }
 
+/* Platform-specific search input focus colors */
+#threadly-panel[data-platform="chatgpt"] #threadly-search-input:focus {
+    border-color: #ffffff;
+}
+
+#threadly-panel[data-platform="gemini"] #threadly-search-input:focus {
+    border-color: #4285f4;
+}
+
+#threadly-panel[data-platform="claude"] #threadly-search-input:focus {
+    border-color: #ff6b35;
+}
+
+#threadly-panel[data-platform="ai-studio"] #threadly-search-input:focus {
+    border-color: #4285f4;
+}
+
+#threadly-panel[data-platform="perplexity"] #threadly-search-input:focus {
+    border-color: #14b8a6;
+}
+
+#threadly-panel[data-platform="grok"] #threadly-search-input:focus {
+    border-color: #1f2937;
+}
+
 #threadly-message-list {
     flex: 1; /* Changed from flex-grow: 1 to flex: 1 */
     overflow-y: auto;
@@ -463,6 +489,31 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Platform-specific user message accent colors */
+#threadly-panel[data-platform="chatgpt"] .threadly-message-item[data-role="user"] {
+    border-left-color: #ffffff;
+}
+
+#threadly-panel[data-platform="gemini"] .threadly-message-item[data-role="user"] {
+    border-left-color: #4285f4;
+}
+
+#threadly-panel[data-platform="claude"] .threadly-message-item[data-role="user"] {
+    border-left-color: #ff6b35;
+}
+
+#threadly-panel[data-platform="ai-studio"] .threadly-message-item[data-role="user"] {
+    border-left-color: #4285f4;
+}
+
+#threadly-panel[data-platform="perplexity"] .threadly-message-item[data-role="user"] {
+    border-left-color: #14b8a6;
+}
+
+#threadly-panel[data-platform="grok"] .threadly-message-item[data-role="user"] {
+    border-left-color: #1f2937;
+}
+
 .threadly-message-item:hover {
     background: rgba(0, 0, 0, 0.3);
     transform: translateX(2px);
@@ -502,8 +553,60 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
     transition: color 0.2s ease;
 }
 
-.threadly-read-more:hover {
-    color: var(--threadly-text-primary);
+/* Default hover styling removed - now handled by platform-specific rules */
+
+/* Platform-specific read-more button colors */
+#threadly-panel[data-platform="chatgpt"] .threadly-read-more {
+    color: #ffffff;
+}
+
+#threadly-panel[data-platform="chatgpt"] .threadly-read-more:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
+#threadly-panel[data-platform="gemini"] .threadly-read-more {
+    color: #4285f4;
+}
+
+#threadly-panel[data-platform="gemini"] .threadly-read-more:hover {
+    color: #4285f4;
+    text-decoration: underline;
+}
+
+#threadly-panel[data-platform="claude"] .threadly-read-more {
+    color: #ff6b35;
+}
+
+#threadly-panel[data-platform="claude"] .threadly-read-more:hover {
+    color: #ff6b35;
+    text-decoration: underline;
+}
+
+#threadly-panel[data-platform="ai-studio"] .threadly-read-more {
+    color: #4285f4;
+}
+
+#threadly-panel[data-platform="ai-studio"] .threadly-read-more:hover {
+    color: #4285f4;
+    text-decoration: underline;
+}
+
+#threadly-panel[data-platform="perplexity"] .threadly-read-more {
+    color: #14b8a6;
+}
+
+#threadly-panel[data-platform="perplexity"] .threadly-read-more:hover {
+    color: #14b8a6;
+    text-decoration: underline;
+}
+
+#threadly-panel[data-platform="grok"] .threadly-read-more {
+    color: #1f2937;
+}
+
+#threadly-panel[data-platform="grok"] .threadly-read-more:hover {
+    color: #1f2937;
     text-decoration: underline;
 }
 
