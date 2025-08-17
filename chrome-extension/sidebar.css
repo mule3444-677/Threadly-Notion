@@ -418,7 +418,7 @@
 
 /* Platform-specific search input focus colors */
 #threadly-panel[data-platform="chatgpt"] #threadly-search-input:focus {
-    border-color: #ffffff;
+    border-color: #9ca3af;
 }
 
 #threadly-panel[data-platform="gemini"] #threadly-search-input:focus {
@@ -441,11 +441,15 @@
     border-color: #1f2937;
 }
 
+#threadly-panel[data-platform="copilot"] #threadly-search-input:focus {
+    border-color: #0078d4;
+}
+
 #threadly-message-list {
     flex: 1; /* Changed from flex-grow: 1 to flex: 1 */
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 8px 12px 8px 18px;
+    padding: 8px 12px 80px 18px; /* Added bottom padding for toggle */
     min-height: 0; /* Important for flexbox scrolling */
     max-height: calc(100% - 60px); /* Ensure it doesn't exceed available space */
     height: 0; /* Force flexbox to calculate height properly */
@@ -491,7 +495,7 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
 
 /* Platform-specific user message accent colors */
 #threadly-panel[data-platform="chatgpt"] .threadly-message-item[data-role="user"] {
-    border-left-color: #ffffff;
+    border-left-color: #9ca3af;
 }
 
 #threadly-panel[data-platform="gemini"] .threadly-message-item[data-role="user"] {
@@ -512,6 +516,10 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
 
 #threadly-panel[data-platform="grok"] .threadly-message-item[data-role="user"] {
     border-left-color: #1f2937;
+}
+
+#threadly-panel[data-platform="copilot"] .threadly-message-item[data-role="user"] {
+    border-left-color: #0078d4;
 }
 
 .threadly-message-item:hover {
@@ -557,11 +565,11 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
 
 /* Platform-specific read-more button colors */
 #threadly-panel[data-platform="chatgpt"] .threadly-read-more {
-    color: #ffffff;
+    color: #9ca3af;
 }
 
 #threadly-panel[data-platform="chatgpt"] .threadly-read-more:hover {
-    color: #ffffff;
+    color: #9ca3af;
     text-decoration: underline;
 }
 
@@ -610,6 +618,15 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
     text-decoration: underline;
 }
 
+#threadly-panel[data-platform="copilot"] .threadly-read-more {
+    color: #0078d4;
+}
+
+#threadly-panel[data-platform="copilot"] .threadly-read-more:hover {
+    color: #0078d4;
+    text-decoration: underline;
+}
+
 .threadly-empty-state {
     text-align: center;
     color: var(--threadly-text-secondary);
@@ -651,6 +668,192 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
     width: 0;
     height: 0;
     z-index: -9999;
+}
+
+/* --- Toggle Bar and Segment Styles --- */
+.threadly-toggle-container {
+    position: absolute;
+    bottom: 15px;
+    left: 18px;
+    right: 18px;
+    z-index: 10;
+    pointer-events: auto;
+}
+
+.threadly-toggle-bar {
+    position: relative;
+    width: 100%;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    
+    /* Glass morphic effect matching text area */
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.threadly-toggle-segment {
+    position: absolute;
+    width: calc(50% - 2px);
+    height: 28px;
+    background: var(--threadly-primary-accent);
+    border-radius: 14px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1;
+    
+    /* Glass morphic effect matching text area */
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.threadly-toggle-segment.user {
+    left: 2px;
+    transform: translateX(0);
+}
+
+.threadly-toggle-segment.ai {
+    left: 2px;
+    transform: translateX(100%);
+}
+
+.threadly-toggle-label {
+    position: absolute;
+    z-index: 2;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--threadly-text-primary);
+    text-align: center;
+    transition: color 0.3s ease;
+    pointer-events: none;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.threadly-toggle-label.you {
+    left: 25%;
+    transform: translate(-50%, -50%);
+}
+
+.threadly-toggle-label.ai {
+    right: 25%;
+    transform: translate(50%, -50%);
+}
+
+/* Platform-specific toggle segment colors */
+#threadly-panel[data-platform="chatgpt"] .threadly-toggle-segment {
+    background: linear-gradient(135deg, #9ca3af, #6b7280);
+    box-shadow: 0 2px 8px rgba(156, 163, 175, 0.3);
+}
+
+#threadly-panel[data-platform="gemini"] .threadly-toggle-segment {
+    background: linear-gradient(135deg, #4285f4, #34a853);
+    box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+}
+
+#threadly-panel[data-platform="claude"] .threadly-toggle-segment {
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+}
+
+#threadly-panel[data-platform="ai-studio"] .threadly-toggle-segment {
+    background: linear-gradient(135deg, #4285f4, #34a853);
+    box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+}
+
+#threadly-panel[data-platform="perplexity"] .threadly-toggle-segment {
+    background: linear-gradient(135deg, #14b8a6, #0d9488);
+    box-shadow: 0 2px 8px rgba(20, 184, 166, 0.3);
+}
+
+#threadly-panel[data-platform="grok"] .threadly-toggle-segment {
+    background: linear-gradient(135deg, #1f2937, #374151);
+    box-shadow: 0 2px 8px rgba(31, 41, 55, 0.3);
+}
+
+#threadly-panel[data-platform="copilot"] .threadly-toggle-segment {
+    background: linear-gradient(135deg, #0078d4, #106ebe);
+    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.3);
+}
+
+/* Noise gradient at bottom of expanded state */
+.threadly-noise-gradient {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(to top, 
+        rgba(0, 0, 0, 0.15) 0%,
+        rgba(0, 0, 0, 0.08) 40%,
+        rgba(0, 0, 0, 0.03) 70%,
+        transparent 100%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Platform-specific noise colors */
+#threadly-panel[data-platform="chatgpt"] .threadly-noise-gradient {
+    background: linear-gradient(to top, 
+        rgba(156, 163, 175, 0.2) 0%,
+        rgba(156, 163, 175, 0.1) 40%,
+        rgba(156, 163, 175, 0.04) 70%,
+        transparent 100%);
+}
+
+#threadly-panel[data-platform="gemini"] .threadly-noise-gradient {
+    background: linear-gradient(to top, 
+        rgba(66, 133, 244, 0.2) 0%,
+        rgba(66, 133, 244, 0.1) 40%,
+        rgba(66, 133, 244, 0.04) 70%,
+        transparent 100%);
+}
+
+#threadly-panel[data-platform="claude"] .threadly-noise-gradient {
+    background: linear-gradient(to top, 
+        rgba(255, 107, 53, 0.2) 0%,
+        rgba(255, 107, 53, 0.1) 40%,
+        rgba(255, 107, 53, 0.04) 70%,
+        transparent 100%);
+}
+
+#threadly-panel[data-platform="ai-studio"] .threadly-noise-gradient {
+    background: linear-gradient(to top, 
+        rgba(66, 133, 244, 0.2) 0%,
+        rgba(66, 133, 244, 0.1) 40%,
+        rgba(66, 133, 244, 0.04) 70%,
+        transparent 100%);
+}
+
+#threadly-panel[data-platform="perplexity"] .threadly-noise-gradient {
+    background: linear-gradient(to top, 
+        rgba(20, 184, 166, 0.2) 0%,
+        rgba(20, 184, 166, 0.1) 40%,
+        rgba(20, 184, 166, 0.04) 70%,
+        transparent 100%);
+}
+
+#threadly-panel[data-platform="grok"] .threadly-noise-gradient {
+    background: linear-gradient(to top, 
+        rgba(31, 41, 55, 0.2) 0%,
+        rgba(31, 41, 55, 0.1) 40%,
+        rgba(31, 41, 55, 0.04) 70%,
+        transparent 100%);
+}
+
+#threadly-panel[data-platform="copilot"] .threadly-noise-gradient {
+    background: linear-gradient(to top, 
+        rgba(0, 120, 212, 0.2) 0%,
+        rgba(0, 120, 212, 0.1) 40%,
+        rgba(0, 120, 212, 0.04) 70%,
+        transparent 100%);
 }
 
 /* Responsive: Hide on mobile */

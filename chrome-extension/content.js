@@ -17,9 +17,9 @@
         gemini: {
             name: 'Gemini',
             // Updated container selectors for current Gemini interface
-            chatContainer: 'main, .conversation-container, [role="main"], .chat-interface',
+            chatContainer: 'main, .conversation-container, [role="main"], .chat-interface, .chat-container',
             // Updated user selectors for current Gemini structure
-            userSelector: '.user-message, [data-role="user"], .query-text, div[class*="user"] p, .user-input-display',
+            userSelector: '.user-message, [data-role="user"], .query-text, div[class*="user"] p, .user-input-display, .user-query, div[class*="query"]',
         },
         grok: {
             name: 'Grok',
@@ -28,8 +28,13 @@
         },
         'ai-studio': {
             name: 'AI Studio',
-            chatContainer: '.chat-history, main',
-            userSelector: '.user-query, [data-role="user"]',
+            chatContainer: 'main, .chat-container, .chat-interface, [role="main"], .conversation-container',
+            userSelector: '.user-message, [data-role="user"], .user-input, .user-query, .prompt-text, .input-text, .query-input, .user-prompt, div[class*="user"] p, div[class*="prompt"] p',
+        },
+        copilot: {
+            name: 'Copilot',
+            chatContainer: 'main, .chat-container, .conversation-container, [role="main"]',
+            userSelector: '.user-message, [data-role="user"], .user-input, .query-text, div[class*="user"] p, .user-prompt, .user-query, div[class*="prompt"]',
         },
         perplexity: {
             name: 'Perplexity',
@@ -48,9 +53,10 @@
     let debouncedUpdate = debounce(updateAndSaveConversation, 750); // Increased debounce
     let retryCount = 0;
     const MAX_RETRIES = 5;
+    let showUserMessages = true; // Toggle state for user/AI messages
 
     // --- DOM Elements --- //
-    let container, panel, closeButton, messageList, searchInput, platformIndicator;
+    let container, panel, closeButton, messageList, searchInput, platformIndicator, toggleBar, toggleSegment;
 
     // --- Enhanced Platform Detection --- //
     function detectPlatform() {
@@ -68,7 +74,9 @@
             'x.ai': 'grok',
             'aistudio.google.com': 'ai-studio',
             'perplexity.ai': 'perplexity',
-            'www.perplexity.ai': 'perplexity'
+            'www.perplexity.ai': 'perplexity',
+            'copilot.microsoft.com': 'copilot',
+            'www.copilot.microsoft.com': 'copilot'
         };
         
         for (const domain in platformMap) {
@@ -115,6 +123,14 @@
                     <div id="threadly-message-list">
                         <div class="threadly-empty-state">Loading messages...</div>
                     </div>
+                    <div class="threadly-noise-gradient"></div>
+                    <div class="threadly-toggle-container">
+                        <div class="threadly-toggle-bar" id="threadly-toggle-bar">
+                            <div class="threadly-toggle-segment user" id="threadly-toggle-segment"></div>
+                            <span class="threadly-toggle-label you">YOU</span>
+                            <span class="threadly-toggle-label ai">AI</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -129,11 +145,16 @@
         messageList = panel.querySelector('#threadly-message-list');
         searchInput = panel.querySelector('#threadly-search-input');
         platformIndicator = panel.querySelector('.threadly-platform-indicator');
+        toggleBar = panel.querySelector('#threadly-toggle-bar');
+        toggleSegment = panel.querySelector('#threadly-toggle-segment');
         platformIndicator.textContent = PLATFORM_CONFIG[currentPlatformId].name;
         platformIndicator.setAttribute('data-platform', currentPlatformId);
         
         // Add platform data attribute to panel for CSS targeting
         panel.setAttribute('data-platform', currentPlatformId);
+        
+        // Set initial toggle state
+        toggleSegment.classList.add('user');
         
         // Platform-specific positioning adjustments
         adjustUIForPlatform();
@@ -226,6 +247,19 @@
             // Ensure proper visibility on Perplexity
             panel.style.zIndex = '10000';
             panel.style.right = '10px';
+        } else if (currentPlatformId === 'ai-studio') {
+            // AI Studio specific adjustments
+            panel.style.zIndex = '9999';
+            panel.style.right = '10px';
+            
+            // Force scroll to top of chat for AI Studio
+            setTimeout(() => {
+                const chatContainer = document.querySelector('.chat-container, .conversation-container, main');
+                if (chatContainer) {
+                    chatContainer.scrollTop = 0;
+                    console.log('Threadly: Scrolled AI Studio chat to top');
+                }
+            }, 500);
         }
     }
 
@@ -246,6 +280,7 @@
         });
         
         searchInput.addEventListener('input', (e) => filterMessages(e.target.value));
+        toggleBar.addEventListener('click', toggleMessageType);
         document.addEventListener('click', handleClickOutside);
     }
     
@@ -269,6 +304,11 @@
             panel.classList.remove('threadly-expanded');
             panel.style.top = '10vh';
             panel.style.bottom = 'auto';
+            
+            // Clear message list when closing to prevent text size issues
+            if (messageList) {
+                messageList.innerHTML = '';
+            }
         }
     }
 
@@ -310,7 +350,7 @@
     }
 
     // --- Enhanced Chat Extraction --- //
-    function extractUserConversation() {
+    function extractConversation() {
         const config = PLATFORM_CONFIG[currentPlatformId];
         const extracted = [];
         
@@ -342,7 +382,46 @@
                     }
                     
                     if (text && text.length > 2) { // Minimum length check
-                        console.log('Threadly: Extracted message', index + 1, ':', text.substring(0, 50) + '...');
+                        // Simple filtering for AI Studio: only accept short, question-like text as user input
+                        if (currentPlatformId === 'ai-studio') {
+                            // User input should be relatively short and look like a question/request
+                            if (text.length > 200) {
+                                console.log('Threadly: Skipping long text (likely AI response):', text.substring(0, 50) + '...');
+                                return; // Skip this element
+                            }
+                            
+                            // Check if it looks like a user question/request
+                            const questionPatterns = ['?', 'what', 'how', 'why', 'when', 'where', 'who', 'can you', 'please', 'help', 'explain', 'tell me'];
+                            const looksLikeQuestion = questionPatterns.some(pattern => 
+                                text.toLowerCase().includes(pattern.toLowerCase())
+                            );
+                            
+                            if (!looksLikeQuestion && text.length > 100) {
+                                console.log('Threadly: Skipping non-question text (likely AI response):', text.substring(0, 50) + '...');
+                                return; // Skip this element
+                            }
+                        }
+                        
+                        // Filter for Copilot: exclude thinking/thoughts text
+                        if (currentPlatformId === 'copilot') {
+                            const thinkingKeywords = ['thinking', 'thought', 'analyzing', 'considering', 'planning', 'reasoning', 'let me think', 'i need to', 'first, let me', 'let me analyze', 'i\'ll start by', 'let me search', 'searching for', 'looking up'];
+                            const isThinkingText = thinkingKeywords.some(keyword => 
+                                text.toLowerCase().includes(keyword.toLowerCase())
+                            );
+                            
+                            if (isThinkingText) {
+                                console.log('Threadly: Skipping Copilot thinking text:', text.substring(0, 50) + '...');
+                                return; // Skip this element
+                            }
+                            
+                            // User input should be relatively short
+                            if (text.length > 150) {
+                                console.log('Threadly: Skipping long text (likely AI response):', text.substring(0, 50) + '...');
+                                return; // Skip this element
+                            }
+                        }
+                        
+                        console.log('Threadly: Extracted user message', index + 1, ':', text.substring(0, 50) + '...');
                         extracted.push({
                             role: 'user',
                             content: text,
@@ -359,7 +438,137 @@
             }
         }
         
+        // Also extract AI responses if available
+        let aiSelectors = '';
+        
+        // Platform-specific AI selectors
+        if (currentPlatformId === 'chatgpt') {
+            aiSelectors = 'div[data-message-author-role="assistant"] .whitespace-pre-wrap, div[data-message-author-role="assistant"] div[class*="prose"], div[data-message-author-role="assistant"] .text-base';
+        } else if (currentPlatformId === 'claude') {
+            aiSelectors = 'div[data-testid="chat-assistant-message-content"], div[data-testid="assistant-message"], .assistant-message, [data-role="assistant"], div[class*="assistant"], .claude-response, div[class*="claude"], div[class*="response"]';
+        } else if (currentPlatformId === 'gemini') {
+            aiSelectors = '.assistant-message, [data-role="assistant"], .ai-response, div[class*="assistant"] p, .gemini-response, div[class*="gemini"], div[class*="response"], .response-text, div[class*="answer"], .ai-answer';
+        } else if (currentPlatformId === 'ai-studio') {
+            aiSelectors = '.assistant-message, [data-role="assistant"], .ai-response, .response-text, .ai-answer, .generated-text, .final-answer, .ai-output, .response-content, .output-text, .answer-content, .model-response, .ai-studio-response, div[class*="assistant"] p, div[class*="response"] p, div[class*="answer"] p, div[class*="generated"] p';
+        } else if (currentPlatformId === 'copilot') {
+            aiSelectors = '.assistant-message, [data-role="assistant"], .ai-response, .copilot-response, div[class*="assistant"], div[class*="response"], .response-text, div[class*="answer"]';
+        } else if (currentPlatformId === 'perplexity') {
+            aiSelectors = '.ai-response, [data-role="assistant"], .assistant-message, div[class*="answer"]';
+        } else if (currentPlatformId === 'grok') {
+            aiSelectors = '.assistant-message, [data-role="assistant"], .ai-response';
+        } else {
+            aiSelectors = 'div[data-message-author-role="assistant"] .whitespace-pre-wrap, div[data-message-author-role="assistant"] div[class*="prose"], .assistant-message, .ai-response';
+        }
+        
+        try {
+            const aiElements = document.querySelectorAll(aiSelectors);
+            console.log('Threadly: Found', aiElements.length, 'AI response elements with selector:', aiSelectors);
+            
+            aiElements.forEach((aiEl, index) => {
+                let text = '';
+                
+                if (aiEl.textContent) {
+                    text = aiEl.textContent.trim();
+                } else if (aiEl.innerText) {
+                    text = aiEl.innerText.trim();
+                }
+                
+                if (text && text.length > 2) {
+                    // For AI Studio, focus on substantial AI responses
+                    if (currentPlatformId === 'ai-studio') {
+                        // AI responses should be substantial and informative
+                        if (text.length < 30) {
+                            console.log('Threadly: Skipping very short AI response:', text.substring(0, 50) + '...');
+                            return; // Skip this element
+                        }
+                        
+                        // Skip thinking/planning text
+                        if (text.toLowerCase().includes('thinking') || text.toLowerCase().includes('let me think')) {
+                            console.log('Threadly: Skipping thinking text:', text.substring(0, 50) + '...');
+                            return; // Skip this element
+                        }
+                    }
+                    
+                    // For Copilot, filter out thinking/thoughts text and focus on actual responses
+                    if (currentPlatformId === 'copilot') {
+                        const thinkingKeywords = ['thinking', 'thought', 'analyzing', 'considering', 'planning', 'reasoning', 'let me think', 'i need to', 'first, let me', 'let me analyze', 'i\'ll start by', 'let me search', 'searching for', 'looking up', 'searching', 'found some information', 'here\'s what i found'];
+                        const isThinkingText = thinkingKeywords.some(keyword => 
+                            text.toLowerCase().includes(keyword.toLowerCase())
+                        );
+                        
+                        if (isThinkingText) {
+                            console.log('Threadly: Skipping Copilot thinking text from AI responses:', text.substring(0, 50) + '...');
+                            return; // Skip this element
+                        }
+                        
+                        // AI responses should be substantial
+                        if (text.length < 40) {
+                            console.log('Threadly: Skipping very short Copilot response:', text.substring(0, 50) + '...');
+                            return; // Skip this element
+                        }
+                    }
+                    
+                    console.log('Threadly: Extracted AI message', index + 1, ':', text.substring(0, 50) + '...');
+                    extracted.push({
+                        role: 'assistant',
+                        content: text,
+                        element: aiEl
+                    });
+                }
+            });
+            
+            // Fallback: If no AI responses found, try alternative methods
+            if (aiElements.length === 0) {
+                console.log('Threadly: No AI responses found with primary selectors, trying fallback methods...');
+                
+                // Try to find AI responses by looking for elements that contain typical AI response text
+                const allTextElements = document.querySelectorAll('div, p, span');
+                const aiResponseKeywords = ['I understand', 'Here\'s', 'Based on', 'Let me', 'I can', 'The answer', 'According to', 'I\'ll help', 'Here is', 'To answer'];
+                
+                allTextElements.forEach(el => {
+                    const text = el.textContent?.trim() || '';
+                    if (text.length > 20 && text.length < 2000) { // Reasonable length for AI response
+                        const hasAiKeywords = aiResponseKeywords.some(keyword => 
+                            text.toLowerCase().includes(keyword.toLowerCase())
+                        );
+                        
+                        // Also check if it's not a user message (already extracted)
+                        const isNotUserMessage = !extracted.some(msg => 
+                            msg.content === text || msg.element === el
+                        );
+                        
+                        if (hasAiKeywords && isNotUserMessage) {
+                            console.log('Threadly: Found potential AI response with fallback method:', text.substring(0, 50) + '...');
+                            extracted.push({
+                                role: 'assistant',
+                                content: text,
+                                element: el
+                            });
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.warn('Threadly: Error extracting AI responses:', error);
+        }
+        
         console.log('Threadly: Total extracted messages:', extracted.length);
+        
+        // Debug: Log what elements are available for better debugging
+        if (extracted.length === 0) {
+            console.log('Threadly: Debug - No messages extracted, checking available elements...');
+            const debugElements = document.querySelectorAll('div, p, span');
+            console.log('Threadly: Debug - Found', debugElements.length, 'potential text elements');
+            
+            // Log first few elements for debugging
+            debugElements.slice(0, 10).forEach((el, i) => {
+                const text = el.textContent?.trim() || '';
+                if (text.length > 5) {
+                    console.log(`Threadly: Debug - Element ${i}:`, text.substring(0, 100) + '...');
+                }
+            });
+        }
+        
         return extracted;
     }
 
@@ -367,10 +576,11 @@
     function renderMessages(messagesToRender) {
         if (!messageList) return;
         
+        // Clear existing content completely
         messageList.innerHTML = '';
         
         if (messagesToRender.length === 0) {
-            messageList.innerHTML = '<div class="threadly-empty-state">No user prompts found. Try interacting with the chat first.</div>';
+            messageList.innerHTML = '<div class="threadly-empty-state">No messages found. Try interacting with the chat first.</div>';
             return;
         }
         
@@ -378,14 +588,16 @@
         messagesToRender.forEach((msg, index) => {
             const item = document.createElement('div');
             item.className = 'threadly-message-item';
-            item.dataset.role = 'user';
+            item.dataset.role = msg.role;
             
             // Check if message is longer than 10 words
             const wordCount = msg.content.trim().split(/\s+/).length;
             const isLongMessage = wordCount > 10;
             
+            const roleText = msg.role === 'user' ? `You (#${index + 1})` : `AI (#${index + 1})`;
+            
             item.innerHTML = `
-                <div class="threadly-message-role">You (#${index + 1})</div>
+                <div class="threadly-message-role">${roleText}</div>
                 <div class="threadly-message-text">${escapeHTML(msg.content)}</div>
                 ${isLongMessage ? '<div class="threadly-read-more">See More</div>' : ''}
             `;
@@ -426,11 +638,26 @@
         messageList.appendChild(fragment);
     }
     
+    function toggleMessageType() {
+        showUserMessages = !showUserMessages;
+        toggleSegment.classList.toggle('user', showUserMessages);
+        toggleSegment.classList.toggle('ai', !showUserMessages);
+        filterMessages(searchInput.value);
+    }
+    
     function filterMessages(query) {
         query = query.trim().toLowerCase();
-        const filtered = !query ? allMessages : allMessages.filter(m => 
+        let filtered = !query ? allMessages : allMessages.filter(m => 
             m.content.toLowerCase().includes(query)
         );
+        
+        // Filter by message type based on toggle state
+        if (showUserMessages) {
+            filtered = filtered.filter(m => m.role === 'user');
+        } else {
+            filtered = filtered.filter(m => m.role === 'assistant');
+        }
+        
         renderMessages(filtered);
     }
 
@@ -438,12 +665,24 @@
     function updateAndSaveConversation() {
         console.log('Threadly: Updating conversation for', currentPlatformId);
         
-        const currentMessages = extractUserConversation();
+        const currentMessages = extractConversation();
         
         if (currentMessages.length > 0) {
-            allMessages = currentMessages;
-            saveMessagesToStorage(currentMessages);
-            console.log('Threadly: Updated with', currentMessages.length, 'messages');
+            // Deduplicate messages based on content and role
+            const uniqueMessages = [];
+            const seen = new Set();
+            
+            currentMessages.forEach(msg => {
+                const key = `${msg.role}:${msg.content.substring(0, 100)}`; // Use first 100 chars as key
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueMessages.push(msg);
+                }
+            });
+            
+            allMessages = uniqueMessages;
+            saveMessagesToStorage(uniqueMessages);
+            console.log('Threadly: Updated with', uniqueMessages.length, 'unique messages (was', currentMessages.length, ')');
         } else {
             console.log('Threadly: No messages found during update');
         }
@@ -520,12 +759,13 @@
     
     function getPlatformHighlightColor() {
         const platformColors = {
-            'chatgpt': 'rgba(255, 255, 255, 0.2)',
+            'chatgpt': 'rgba(156, 163, 175, 0.2)',
             'gemini': 'rgba(66, 133, 244, 0.2)',
             'claude': 'rgba(255, 107, 53, 0.2)',
             'ai-studio': 'rgba(66, 133, 244, 0.2)',
             'perplexity': 'rgba(20, 184, 166, 0.2)',
-            'grok': 'rgba(31, 41, 55, 0.2)'
+            'grok': 'rgba(31, 41, 55, 0.2)',
+            'copilot': 'rgba(0, 120, 212, 0.2)'
         };
         return platformColors[currentPlatformId] || 'rgba(0, 191, 174, 0.2)';
     }
@@ -555,11 +795,11 @@
             injectUI();
             
             const savedMessages = await loadMessagesFromStorage();
-            const liveMessages = extractUserConversation();
+            const liveMessages = extractConversation();
             
             // Prefer live messages if available, otherwise use saved
             allMessages = liveMessages.length > 0 ? liveMessages : 
-                        savedMessages.map(m => ({ content: m.content, element: null }));
+                        savedMessages.map(m => ({ content: m.content, element: null, role: m.role || 'user' }));
 
             if (panel && panel.classList.contains('threadly-expanded')) {
                 renderMessages(allMessages);

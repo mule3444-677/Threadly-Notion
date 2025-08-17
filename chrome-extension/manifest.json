@@ -9,6 +9,7 @@
       "matches": [
         "https://chat.openai.com/*",
         "https://chatgpt.com/*",
+        "https://copilot.microsoft.com/*",
         "https://claude.ai/*", 
         "https://gemini.google.com/*",
         "https://grok.com/*",
@@ -26,6 +27,7 @@
       "resources": ["sidebar.css", "Borel/Borel-Regular.ttf"],
       "matches": [
         "https://chat.openai.com/*",
+        "https://copilot.microsoft.com/*",
         "https://chatgpt.com/*", 
         "https://claude.ai/*",
         "https://gemini.google.com/*",
