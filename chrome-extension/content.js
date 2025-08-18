@@ -53,7 +53,11 @@
     let debouncedUpdate = debounce(updateAndSaveConversation, 750); // Increased debounce
     let retryCount = 0;
     const MAX_RETRIES = 5;
-    let showUserMessages = true; // Toggle state for user/AI messages
+    let messageFilterState = 'user'; // 'user', 'assistant', or 'favorites'
+    let isInSelectionMode = false;
+    let selectedMessageIds = [];
+    let collections = [];
+    let currentFilter = { type: 'all' }; // 'all', 'starred', or 'collection'
 
     // --- DOM Elements --- //
     let container, panel, closeButton, messageList, searchInput, platformIndicator, toggleBar, toggleSegment;
@@ -92,11 +96,65 @@
 
     // --- Enhanced UI Injection --- //
     function injectUI() {
-        // Remove any existing instances
-        const existing = document.getElementById('threadly-container');
-        if (existing) {
-            existing.remove();
+        // Check if UI already exists
+        if (document.getElementById('threadly-panel')) {
+            return;
         }
+        
+        // Contextual Actions Bar HTML (defined first)
+        const contextualActionsHTML = `
+            <div id="threadly-contextual-actions" class="threadly-contextual-actions" style="display: none;">
+                <div class="threadly-selection-info">
+                    <span id="threadly-selection-count">Select items to organize</span>
+                </div>
+                <div class="threadly-action-buttons">
+                    <button id="threadly-assign-btn" class="threadly-action-btn" disabled>
+                        Assign to Collection
+                    </button>
+                    <button id="threadly-unstar-btn" class="threadly-action-btn" disabled>
+                        Unstar
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Create the main panel
+        const panelHTML = `
+            <div id="threadly-panel" class="threadly-panel">
+                <div class="threadly-header">
+                    <div class="threadly-title">
+                        <span class="threadly-icon">🔍</span>
+                        <span class="threadly-text">Threadly</span>
+                    </div>
+                    <button class="threadly-toggle-btn" id="threadly-toggle-btn">
+                        <span class="threadly-toggle-icon">−</span>
+                    </button>
+                </div>
+                
+                <div class="threadly-content">
+                    <div class="threadly-tab-content">
+                        <div class="threadly-search-row">
+                            <input type="text" id="threadly-search-input" placeholder="Search messages..." />
+                            <button id="threadly-select-btn" class="threadly-select-btn">
+                                <span class="threadly-select-icon">☑️</span>
+                            </button>
+                        </div>
+                        
+                        <div class="threadly-toggle-container">
+                            <div class="threadly-toggle-bar" id="threadly-toggle-bar">
+                                <div class="threadly-toggle-segment" id="threadly-toggle-segment"></div>
+                                <div class="threadly-toggle-label user">YOU</div>
+                                <div class="threadly-toggle-label assistant">AI</div>
+                                <div class="threadly-toggle-label fav">FAV</div>
+                            </div>
+                            ${contextualActionsHTML}
+                        </div>
+                        
+                        <div class="threadly-messages" id="threadly-messages"></div>
+                    </div>
+                </div>
+            </div>
+        `;
 
         const link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -118,7 +176,12 @@
                 </div>
                 <div class="threadly-content">
                     <div class="threadly-search-container">
-                        <input type="text" id="threadly-search-input" placeholder="Search your prompts...">
+                        <div class="threadly-search-row">
+                            <input type="text" id="threadly-search-input" placeholder="Search your prompts...">
+                            <button class="threadly-select-btn" id="threadly-select-btn" title="Select Messages" style="display: none;">
+                                <span class="threadly-select-icon">☐</span>
+                            </button>
+                        </div>
                     </div>
                     <div id="threadly-message-list">
                         <div class="threadly-empty-state">Loading messages...</div>
@@ -126,10 +189,12 @@
                     <div class="threadly-noise-gradient"></div>
                     <div class="threadly-toggle-container">
                         <div class="threadly-toggle-bar" id="threadly-toggle-bar">
-                            <div class="threadly-toggle-segment user" id="threadly-toggle-segment"></div>
+                            <div class="threadly-toggle-segment" id="threadly-toggle-segment"></div>
                             <span class="threadly-toggle-label you">YOU</span>
                             <span class="threadly-toggle-label ai">AI</span>
+                            <span class="threadly-toggle-label fav">FAV</span>
                         </div>
+                        ${contextualActionsHTML}
                     </div>
                 </div>
             </div>
@@ -155,6 +220,15 @@
         
         // Set initial toggle state
         toggleSegment.classList.add('user');
+        messageFilterState = 'user';
+        
+        // Ensure Select button is hidden by default
+        const selectBtn = document.getElementById('threadly-select-btn');
+        if (selectBtn) {
+            selectBtn.style.display = 'none';
+            selectBtn.style.opacity = '0';
+            selectBtn.style.transform = 'scale(0.8)';
+        }
         
         // Platform-specific positioning adjustments
         adjustUIForPlatform();
@@ -279,8 +353,33 @@
             togglePanel(false);
         });
         
-        searchInput.addEventListener('input', (e) => filterMessages(e.target.value));
-        toggleBar.addEventListener('click', toggleMessageType);
+        searchInput.addEventListener('input', async (e) => {
+            await filterMessages(e.target.value);
+        });
+        
+        // Add click listeners for each label to allow direct selection
+        toggleBar.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('threadly-toggle-label')) {
+                if (e.target.classList.contains('you')) {
+                    await selectFilterState('user');
+                } else if (e.target.classList.contains('ai')) {
+                    await selectFilterState('assistant');
+                } else if (e.target.classList.contains('fav')) {
+                    await selectFilterState('favorites');
+                }
+            }
+        });
+        
+        // Add Select button event listener
+        const selectBtn = document.getElementById('threadly-select-btn');
+        if (selectBtn) {
+            selectBtn.addEventListener('click', enterSelectionMode);
+        }
+        
+        // Add event listeners for contextual action buttons
+        document.getElementById('threadly-assign-btn').addEventListener('click', showAssignToCollectionPopover);
+        document.getElementById('threadly-unstar-btn').addEventListener('click', unstarMessages);
+        
         document.addEventListener('click', handleClickOutside);
     }
     
@@ -319,12 +418,29 @@
         return key;
     }
 
+    function getFavoritesStorageKey() {
+        // Global favorites storage across all platforms and chats
+        const key = `threadly_global_favorites`;
+        console.log('Threadly: Global favorites storage key:', key);
+        return key;
+    }
+
+    function getCollectionsStorageKey() {
+        // Global collections storage across all platforms
+        const key = `threadly_global_collections`;
+        console.log('Threadly: Global collections storage key:', key);
+        return key;
+    }
+
     async function saveMessagesToStorage(messages) {
         try {
             const key = getStorageKey();
             const storableMessages = messages.map(msg => ({ 
                 content: msg.content,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                role: msg.role,
+                isFavorited: msg.isFavorited || false,
+                collectionId: msg.collectionId || null
             }));
             
             if (storableMessages.length > 0) {
@@ -333,6 +449,26 @@
             }
         } catch (error) {
             console.error('Threadly: Storage save error:', error);
+        }
+    }
+
+    async function saveFavoritesToStorage(favorites) {
+        try {
+            const key = getFavoritesStorageKey();
+            await chrome.storage.local.set({ [key]: favorites });
+            console.log('Threadly: Saved', favorites.length, 'global favorites');
+        } catch (error) {
+            console.error('Threadly: Favorites storage save error:', error);
+        }
+    }
+
+    async function saveCollectionsToStorage(collections) {
+        try {
+            const key = getCollectionsStorageKey();
+            await chrome.storage.local.set({ [key]: collections });
+            console.log('Threadly: Saved', collections.length, 'global collections');
+        } catch (error) {
+            console.error('Threadly: Collections storage save error:', error);
         }
     }
 
@@ -345,6 +481,32 @@
             return messages;
         } catch (error) {
             console.error('Threadly: Storage load error:', error);
+            return [];
+        }
+    }
+
+    async function loadFavoritesFromStorage() {
+        try {
+            const key = getFavoritesStorageKey();
+            const data = await chrome.storage.local.get(key);
+            const favorites = data[key] || [];
+            console.log('Threadly: Loaded', favorites.length, 'global favorites');
+            return favorites;
+        } catch (error) {
+            console.error('Threadly: Favorites storage load error:', error);
+            return [];
+        }
+    }
+
+    async function loadCollectionsFromStorage() {
+        try {
+            const key = getCollectionsStorageKey();
+            const data = await chrome.storage.local.get(key);
+            const collections = data[key] || [];
+            console.log('Threadly: Loaded', collections.length, 'global collections');
+            return collections;
+        } catch (error) {
+            console.error('Threadly: Collections storage load error:', error);
             return [];
         }
     }
@@ -589,6 +751,12 @@
             const item = document.createElement('div');
             item.className = 'threadly-message-item';
             item.dataset.role = msg.role;
+            if (msg.isFavorited) {
+                item.classList.add('favorited');
+                item.setAttribute('data-starred', 'true');
+            } else {
+                item.setAttribute('data-starred', 'false');
+            }
             
             // Check if message is longer than 10 words
             const wordCount = msg.content.trim().split(/\s+/).length;
@@ -596,11 +764,59 @@
             
             const roleText = msg.role === 'user' ? `You (#${index + 1})` : `AI (#${index + 1})`;
             
+            // Add platform indicator for favorited messages
+            let platformIndicator = '';
+            if (msg.isFavorited && msg.originalPlatform && msg.originalPlatform !== currentPlatformId) {
+                const platformName = PLATFORM_CONFIG[msg.originalPlatform]?.name || msg.originalPlatform;
+                platformIndicator = `<span class="threadly-platform-badge" data-original-platform="${msg.originalPlatform}">${platformName}</span>`;
+            }
+            
             item.innerHTML = `
-                <div class="threadly-message-role">${roleText}</div>
+                <div class="threadly-message-header">
+                    <div class="threadly-message-left">
+                        <input type="checkbox" class="threadly-message-checkbox" data-message-id="${index}" style="display: none;">
+                        <div class="threadly-message-role">
+                            ${roleText}
+                            ${platformIndicator}
+                        </div>
+                    </div>
+                    <button class="threadly-star-btn ${msg.isFavorited ? 'starred' : ''}" title="${msg.isFavorited ? 'Remove from favorites' : 'Add to favorites'}">
+                        <span class="threadly-star-icon">${msg.isFavorited ? '★' : '☆'}</span>
+                    </button>
+                </div>
                 <div class="threadly-message-text">${escapeHTML(msg.content)}</div>
+                ${msg.collectionId ? `<div class="threadly-collection-tag">${getCollectionName(msg.collectionId)}</div>` : ''}
                 ${isLongMessage ? '<div class="threadly-read-more">See More</div>' : ''}
             `;
+
+            // Add checkbox event listener
+            const checkbox = item.querySelector('.threadly-message-checkbox');
+            if (checkbox) {
+                checkbox.addEventListener('change', function(e) {
+                    e.stopPropagation();
+                    if (isInSelectionMode) {
+                        toggleMessageSelection(index, this.checked);
+                    }
+                });
+            }
+            
+            // Add click event for multipurpose functionality
+            checkbox.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (!isInSelectionMode) {
+                    // First click enters selection mode
+                    toggleSelectionMode();
+                    this.checked = true; // Check the clicked item
+                    toggleMessageSelection(index, true);
+                }
+            });
+
+            // Add star button event listener
+            const starBtn = item.querySelector('.threadly-star-btn');
+            starBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleFavorite(msg, index);
+            });
 
             // Add read more functionality
             if (isLongMessage) {
@@ -639,26 +855,399 @@
     }
     
     function toggleMessageType() {
-        showUserMessages = !showUserMessages;
-        toggleSegment.classList.toggle('user', showUserMessages);
-        toggleSegment.classList.toggle('ai', !showUserMessages);
-        filterMessages(searchInput.value);
+        // This function is no longer needed - replaced by selectFilterState
+        // Keeping for backward compatibility but it's not used
+        selectFilterState('user');
+    }
+
+    function toggleFavoritesFilter() {
+        // This function is no longer needed - replaced by selectFilterState
+        // Keeping for backward compatibility but it's not used
+        selectFilterState('favorites');
     }
     
-    function filterMessages(query) {
+    async function filterMessages(query) {
         query = query.trim().toLowerCase();
         let filtered = !query ? allMessages : allMessages.filter(m => 
             m.content.toLowerCase().includes(query)
         );
         
         // Filter by message type based on toggle state
-        if (showUserMessages) {
+        if (messageFilterState === 'user') {
             filtered = filtered.filter(m => m.role === 'user');
-        } else {
+        } else if (messageFilterState === 'assistant') {
             filtered = filtered.filter(m => m.role === 'assistant');
+        } else if (messageFilterState === 'favorites') {
+            // For favorites, we need to load and show all global favorites
+            await loadAndShowAllFavorites();
+            return; // Exit early as loadAndShowAllFavorites will handle rendering
         }
         
         renderMessages(filtered);
+    }
+
+    async function loadAndShowAllFavorites() {
+        try {
+            const globalFavorites = await loadFavoritesFromStorage();
+            
+            if (globalFavorites.length === 0) {
+                messageList.innerHTML = '<div class="threadly-empty-state">No favorited messages found. Star some messages to see them here!</div>';
+                return;
+            }
+            
+            // Create a display list of all global favorites
+            const favoritesToShow = globalFavorites.map((fav, index) => ({
+                content: fav.content,
+                role: fav.role,
+                isFavorited: true,
+                originalPlatform: fav.platform,
+                chatPath: fav.chatPath,
+                timestamp: fav.timestamp,
+                element: null, // No element reference for cross-platform favorites
+                index: index
+            }));
+            
+            // Apply search filter if there's a query
+            const query = searchInput.value.trim().toLowerCase();
+            let filteredFavorites = favoritesToShow;
+            if (query) {
+                filteredFavorites = favoritesToShow.filter(fav => 
+                    fav.content.toLowerCase().includes(query)
+                );
+            }
+            
+            if (filteredFavorites.length === 0) {
+                messageList.innerHTML = '<div class="threadly-empty-state">No favorited messages match your search.</div>';
+                return;
+            }
+            
+            // Render the global favorites
+            renderGlobalFavorites(filteredFavorites);
+            
+        } catch (error) {
+            console.error('Threadly: Error loading global favorites for display:', error);
+            messageList.innerHTML = '<div class="threadly-empty-state">Error loading favorites. Please try again.</div>';
+        }
+    }
+
+    function renderGlobalFavorites(favorites) {
+        if (!messageList) return;
+        
+        // Clear existing content
+        messageList.innerHTML = '';
+        
+        const fragment = document.createDocumentFragment();
+        favorites.forEach((fav, index) => {
+            const item = document.createElement('div');
+            item.className = 'threadly-message-item favorited';
+            item.dataset.role = fav.role;
+            
+            // Check if message is longer than 10 words
+            const wordCount = fav.content.trim().split(/\s+/).length;
+            const isLongMessage = wordCount > 10;
+            
+            const roleText = fav.role === 'user' ? `You (#${index + 1})` : `AI (#${index + 1})`;
+            
+            // Always show platform badge for global favorites
+            const platformName = PLATFORM_CONFIG[fav.originalPlatform]?.name || fav.originalPlatform;
+            const platformIndicator = `<span class="threadly-platform-badge" data-original-platform="${fav.originalPlatform}">${platformName}</span>`;
+            
+            item.innerHTML = `
+                <div class="threadly-message-header">
+                    <div class="threadly-message-role">
+                        ${roleText}
+                        ${platformIndicator}
+                    </div>
+                    <button class="threadly-star-btn starred" title="Remove from favorites">
+                        <span class="threadly-star-icon">★</span>
+                    </button>
+                </div>
+                <div class="threadly-message-text">${escapeHTML(fav.content)}</div>
+                ${isLongMessage ? '<div class="threadly-read-more">See More</div>' : ''}
+            `;
+
+            // Add star button event listener for unstarring
+            const starBtn = item.querySelector('.threadly-star-btn');
+            starBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                unstarGlobalFavorite(fav);
+            });
+
+            // Add read more functionality
+            if (isLongMessage) {
+                const readMoreBtn = item.querySelector('.threadly-read-more');
+                const messageText = item.querySelector('.threadly-message-text');
+                
+                readMoreBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (messageText.classList.contains('expanded')) {
+                        messageText.classList.remove('expanded');
+                        readMoreBtn.textContent = 'See More';
+                    } else {
+                        messageText.classList.add('expanded');
+                        readMoreBtn.textContent = 'See Less';
+                    }
+                });
+            }
+            
+            fragment.appendChild(item);
+        });
+        
+        messageList.appendChild(fragment);
+    }
+
+    async function unstarGlobalFavorite(favorite) {
+        try {
+            // Load current global favorites
+            const globalFavorites = await loadFavoritesFromStorage();
+            
+            // Remove the specific favorite
+            const updatedFavorites = globalFavorites.filter(fav => 
+                !(fav.content === favorite.content && fav.role === favorite.role)
+            );
+            
+            // Save updated favorites
+            await saveFavoritesToStorage(updatedFavorites);
+            
+            // Re-render the favorites view
+            await loadAndShowAllFavorites();
+            
+            console.log('Threadly: Removed global favorite');
+        } catch (error) {
+            console.error('Threadly: Error removing global favorite:', error);
+        }
+    }
+
+    // --- Filter State Management --- //
+    async function selectFilterState(state) {
+        messageFilterState = state;
+        
+        // Update the toggle segment position
+        toggleSegment.classList.remove('user', 'assistant', 'fav', 'collection');
+        toggleSegment.classList.add(state === 'user' ? 'user' : state === 'assistant' ? 'assistant' : state === 'favorites' ? 'fav' : 'collection');
+        
+        // Show/hide Select button based on state with smooth bouncy animation
+        const selectBtn = document.getElementById('threadly-select-btn');
+        const searchInput = document.getElementById('threadly-search-input');
+        
+        if (selectBtn && searchInput) {
+            if (state === 'favorites') {
+                // Add FAV state class (search bar stays same size)
+                searchInput.classList.add('fav-state');
+                
+                // Show Select button with smooth bouncy animation
+                selectBtn.style.display = 'flex';
+                requestAnimationFrame(() => {
+                    selectBtn.style.opacity = '1';
+                    selectBtn.style.transform = 'scale(1) translateZ(0)';
+                });
+                
+            } else {
+                // Hide Select button with smooth bouncy animation
+                selectBtn.style.opacity = '0';
+                selectBtn.style.transform = 'scale(0.8) translateZ(0)';
+                
+                // Wait for animation to complete before hiding
+                setTimeout(() => {
+                    selectBtn.style.display = 'none';
+                    searchInput.classList.remove('fav-state');
+                }, 600); // Match CSS transition duration
+            }
+        }
+        
+        await filterMessages(searchInput.value);
+        console.log('Threadly: Filter state changed to:', state);
+    }
+
+    // --- Favorites Management --- //
+    async function toggleFavorite(message, index) {
+        message.isFavorited = !message.isFavorited;
+        
+        // Update the message in allMessages array
+        const messageIndex = allMessages.findIndex(m => 
+            m.content === message.content && m.role === message.role
+        );
+        
+        if (messageIndex !== -1) {
+            allMessages[messageIndex].isFavorited = message.isFavorited;
+        }
+        
+        // Save updated messages to local storage
+        await saveMessagesToStorage(allMessages);
+        
+        // Update global favorites storage
+        await updateGlobalFavorites();
+        
+        // Re-render to show updated star state
+        filterMessages(searchInput.value);
+        
+        console.log('Threadly: Message', message.isFavorited ? 'favorited' : 'unfavorited');
+    }
+
+    async function updateGlobalFavorites() {
+        try {
+            // Get all favorited messages from current messages
+            const currentFavorites = allMessages.filter(m => m.isFavorited).map(m => ({
+                content: m.content,
+                role: m.role,
+                platform: currentPlatformId,
+                chatPath: window.location.pathname,
+                timestamp: Date.now()
+            }));
+            
+            // Load existing global favorites
+            const existingFavorites = await loadFavoritesFromStorage();
+            
+            // Create a map of existing favorites by content+role for quick lookup
+            const existingFavMap = new Map();
+            existingFavorites.forEach(fav => {
+                const key = `${fav.role}:${fav.content}`;
+                existingFavMap.set(key, fav);
+            });
+            
+            // Update or add current favorites
+            currentFavorites.forEach(newFav => {
+                const key = `${newFav.role}:${newFav.content}`;
+                existingFavMap.set(key, newFav);
+            });
+            
+            // Remove favorites that are no longer favorited in current messages
+            const currentFavKeys = new Set(currentFavorites.map(f => `${f.role}:${f.content}`));
+            const filteredFavorites = Array.from(existingFavMap.values()).filter(fav => {
+                const key = `${fav.role}:${fav.content}`;
+                if (fav.platform === currentPlatformId && fav.chatPath === window.location.pathname) {
+                    // Only keep if it's still favorited in current context
+                    return currentFavKeys.has(key);
+                }
+                // Keep favorites from other platforms/chats
+                return true;
+            });
+            
+            // Save updated global favorites
+            await saveFavoritesToStorage(filteredFavorites);
+            
+            console.log('Threadly: Updated global favorites, total:', filteredFavorites.length);
+        } catch (error) {
+            console.error('Threadly: Error updating global favorites:', error);
+        }
+    }
+
+    async function loadGlobalFavorites() {
+        try {
+            const globalFavorites = await loadFavoritesFromStorage();
+            
+            // Mark current messages as favorited if they exist in global favorites
+            globalFavorites.forEach(globalFav => {
+                const matchingMessage = allMessages.find(m => 
+                    m.content === globalFav.content && m.role === globalFav.role
+                );
+                
+                if (matchingMessage) {
+                    matchingMessage.isFavorited = true;
+                    // Store platform info for display
+                    matchingMessage.originalPlatform = globalFav.platform;
+                }
+            });
+            
+            console.log('Threadly: Loaded global favorites, marked', globalFavorites.length, 'as favorited');
+        } catch (error) {
+            console.error('Threadly: Error loading global favorites:', error);
+        }
+    }
+
+    // --- Collections Management --- //
+    function getCollectionName(collectionId) {
+        const collection = collections.find(c => c.id === collectionId);
+        return collection ? collection.name : 'Unknown Collection';
+    }
+
+    function generateCollectionId() {
+        return 'col_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    async function createCollection(name) {
+        const newCollection = {
+            id: generateCollectionId(),
+            name: name,
+            createdAt: Date.now(),
+            platform: currentPlatformId
+        };
+        
+        collections.push(newCollection);
+        await saveCollectionsToStorage(collections);
+        
+        console.log('Threadly: Created collection:', name);
+        return newCollection;
+    }
+
+    async function assignToCollection(messageIds, collectionId) {
+        try {
+            // Update messages with collection ID
+            messageIds.forEach(id => {
+                if (allMessages[id]) {
+                    allMessages[id].collectionId = collectionId;
+                }
+            });
+            
+            // Save updated messages
+            await saveMessagesToStorage(allMessages);
+            
+            // Update global favorites if needed
+            await updateGlobalFavorites();
+            
+            console.log('Threadly: Assigned', messageIds.length, 'messages to collection');
+            
+            // Show confirmation toast
+            showToast(`Moved ${messageIds.length} items to '${getCollectionName(collectionId)}'`);
+            
+        } catch (error) {
+            console.error('Threadly: Error assigning to collection:', error);
+        }
+    }
+
+    // --- Unstar Messages --- //
+    async function unstarMessages() {
+        if (selectedMessageIds.length === 0) return;
+        
+        try {
+            // Unstar selected messages
+            for (const messageId of selectedMessageIds) {
+                await unstarGlobalFavorite(messageId);
+            }
+            
+            // Exit selection mode
+            exitSelectionMode();
+            
+            // Refresh the display
+            await filterMessages(document.getElementById('threadly-search-input').value);
+            
+            // Show success toast
+            showToast(`Unstarred ${selectedMessageIds.length} message(s)`);
+            
+        } catch (error) {
+            console.error('Threadly: Error unstarring messages:', error);
+            showToast('Error unstarring messages');
+        }
+    }
+
+    function showToast(message) {
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = 'threadly-toast';
+        toast.textContent = message;
+        
+        // Add to panel
+        const panel = document.getElementById('threadly-panel');
+        if (panel) {
+            panel.appendChild(toast);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 3000);
+        }
     }
 
     // --- Enhanced Update Logic --- //
@@ -676,7 +1265,14 @@
                 const key = `${msg.role}:${msg.content.substring(0, 100)}`; // Use first 100 chars as key
                 if (!seen.has(key)) {
                     seen.add(key);
-                    uniqueMessages.push(msg);
+                    // Preserve existing favorite status if available
+                    const existingMsg = allMessages.find(m => 
+                        m.content === msg.content && m.role === msg.role
+                    );
+                    uniqueMessages.push({
+                        ...msg,
+                        isFavorited: existingMsg ? existingMsg.isFavorited : false
+                    });
                 }
             });
             
@@ -799,8 +1395,20 @@
             
             // Prefer live messages if available, otherwise use saved
             allMessages = liveMessages.length > 0 ? liveMessages : 
-                        savedMessages.map(m => ({ content: m.content, element: null, role: m.role || 'user' }));
+                        savedMessages.map(m => ({ 
+                            content: m.content, 
+                            element: null, 
+                            role: m.role || 'user',
+                            isFavorited: m.isFavorited || false,
+                            collectionId: m.collectionId || null
+                        }));
 
+            // Load global favorites to mark current messages
+            await loadGlobalFavorites();
+            
+            // Load collections
+            collections = await loadCollectionsFromStorage();
+            
             if (panel && panel.classList.contains('threadly-expanded')) {
                 renderMessages(allMessages);
             }
@@ -833,5 +1441,185 @@
             setTimeout(init, 2000); // Re-initialize on navigation
         }
     }).observe(document, { subtree: true, childList: true });
+
+    // --- Selection Mode Management --- //
+    function enterSelectionMode() {
+        isInSelectionMode = true;
+        selectedMessageIds.clear();
+        
+        // Show checkboxes on starred messages
+        document.body.classList.add('selection-mode');
+        
+        // Show contextual action bar
+        const contextualActions = document.getElementById('threadly-contextual-actions');
+        if (contextualActions) {
+            contextualActions.style.display = 'flex';
+        }
+        
+        // Update selection info
+        updateSelectionInfo();
+        console.log('Threadly: Entered selection mode');
+    }
+    
+    function exitSelectionMode() {
+        isInSelectionMode = false;
+        selectedMessageIds.clear();
+        
+        // Hide checkboxes
+        document.body.classList.remove('selection-mode');
+        
+        // Hide contextual action bar
+        const contextualActions = document.getElementById('threadly-contextual-actions');
+        if (contextualActions) {
+            contextualActions.style.display = 'none';
+        }
+        
+        // Update selection info
+        updateSelectionInfo();
+        console.log('Threadly: Exited selection mode');
+    }
+    
+    // --- Checkbox Multipurpose Button --- //
+    function toggleSelectionMode() {
+        if (isInSelectionMode) {
+            exitSelectionMode();
+        } else {
+            enterSelectionMode();
+        }
+    }
+
+    function updateSelectionInfo() {
+        const selectionInfo = document.querySelector('.threadly-selection-info');
+        const assignBtn = document.getElementById('threadly-assign-btn');
+        
+        if (selectionInfo) {
+            if (selectedMessageIds.length === 0) {
+                selectionInfo.textContent = 'Select items to organize';
+            } else {
+                selectionInfo.textContent = `${selectedMessageIds.length} item${selectedMessageIds.length === 1 ? '' : 's'} selected`;
+            }
+        }
+        
+        if (assignBtn) {
+            assignBtn.disabled = selectedMessageIds.length === 0;
+        }
+    }
+
+    function toggleMessageSelection(messageId, checked) {
+        const index = selectedMessageIds.indexOf(messageId);
+        if (checked) {
+            if (index === -1) {
+                selectedMessageIds.push(messageId);
+            }
+        } else {
+            if (index !== -1) {
+                selectedMessageIds.splice(index, 1);
+            }
+        }
+        
+        updateSelectionInfo();
+        console.log('Threadly: Selected messages:', selectedMessageIds);
+    }
+
+    function showAssignToCollectionPopover() {
+        // Remove existing popover
+        const existingPopover = document.querySelector('.threadly-collection-popover');
+        if (existingPopover) {
+            existingPopover.remove();
+        }
+        
+        // Create popover
+        const popover = document.createElement('div');
+        popover.className = 'threadly-collection-popover';
+        
+        // Create input for new collection
+        const newCollectionInput = document.createElement('div');
+        newCollectionInput.className = 'threadly-new-collection-input';
+        newCollectionInput.innerHTML = `
+            <input type="text" placeholder="Create new collection..." class="threadly-collection-name-input">
+            <button class="threadly-create-collection-btn">+</button>
+        `;
+        
+        // Create existing collections list
+        const collectionsList = document.createElement('div');
+        collectionsList.className = 'threadly-collections-list';
+        
+        if (collections.length === 0) {
+            collectionsList.innerHTML = '<div class="threadly-no-collections">No collections yet. Create your first one above!</div>';
+        } else {
+            collections.forEach(collection => {
+                const collectionItem = document.createElement('div');
+                collectionItem.className = 'threadly-collection-item';
+                collectionItem.textContent = collection.name;
+                collectionItem.addEventListener('click', () => {
+                    assignToCollection(selectedMessageIds, collection.id);
+                    exitSelectionMode();
+                    filterMessages(searchInput.value);
+                    popover.remove();
+                });
+                collectionsList.appendChild(collectionItem);
+            });
+        }
+        
+        popover.appendChild(newCollectionInput);
+        popover.appendChild(collectionsList);
+        
+        // Position popover near the assign button
+        const assignBtn = document.getElementById('threadly-assign-btn');
+        if (assignBtn) {
+            const rect = assignBtn.getBoundingClientRect();
+            popover.style.position = 'absolute';
+            popover.style.top = `${rect.bottom + 10}px`;
+            popover.style.left = `${rect.left}px`;
+            popover.style.zIndex = '1000';
+        }
+        
+        // Add to panel
+        const panel = document.getElementById('threadly-panel');
+        if (panel) {
+            panel.appendChild(popover);
+        }
+        
+        // Handle new collection creation
+        const nameInput = popover.querySelector('.threadly-collection-name-input');
+        const createBtn = popover.querySelector('.threadly-create-collection-btn');
+        
+        createBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            if (name) {
+                const newCollection = await createCollection(name);
+                await assignToCollection(selectedMessageIds, newCollection.id);
+                exitSelectionMode();
+                filterMessages(searchInput.value);
+                popover.remove();
+            }
+        });
+        
+        nameInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                const name = nameInput.value.trim();
+                if (name) {
+                    const newCollection = await createCollection(name);
+                    await assignToCollection(selectedMessageIds, newCollection.id);
+                    exitSelectionMode();
+                    filterMessages(searchInput.value);
+                    popover.remove();
+                }
+            }
+        });
+        
+        // Focus input
+        nameInput.focus();
+        
+        // Close popover when clicking outside
+        setTimeout(() => {
+            document.addEventListener('click', function closePopover(e) {
+                if (!popover.contains(e.target) && !assignBtn.contains(e.target)) {
+                    popover.remove();
+                    document.removeEventListener('click', closePopover);
+                }
+            });
+        }, 100);
+    }
 
 })();
