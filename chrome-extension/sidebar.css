@@ -899,9 +899,33 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
     user-select: none;
 }
 
-.threadly-toggle-label:hover {
-    color: var(--threadly-primary-accent);
-    background: rgba(255, 255, 255, 0.1);
+/* Platform-specific toggle label hover colors */
+#threadly-panel[data-platform="chatgpt"] .threadly-toggle-label:hover {
+    color: #9ca3af;
+}
+
+#threadly-panel[data-platform="gemini"] .threadly-toggle-label:hover {
+    color: #4285f4;
+}
+
+#threadly-panel[data-platform="claude"] .threadly-toggle-label:hover {
+    color: #ff6b35;
+}
+
+#threadly-panel[data-platform="ai-studio"] .threadly-toggle-label:hover {
+    color: #4285f4;
+}
+
+#threadly-panel[data-platform="perplexity"] .threadly-toggle-label:hover {
+    color: #14b8a6;
+}
+
+#threadly-panel[data-platform="grok"] .threadly-toggle-label:hover {
+    color: #1f2937;
+}
+
+#threadly-panel[data-platform="copilot"] .threadly-toggle-label:hover {
+    color: #0078d4;
 }
 
 .threadly-toggle-label.you {
@@ -1129,9 +1153,167 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
     display: flex;
     align-items: center;
     gap: 8px;
+    position: relative;
 }
 
-/* Message checkbox */
+/* Position the xbox checkbox properly */
+.threadly-message-left .xbox-label {
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+/* Xbox Checkbox Design */
+:root {
+    --box-size: 20px;
+    --stroke: 2px;
+    --duration: 280ms;
+    --easing: cubic-bezier(.2,.7,.2,1);
+    --color: rgba(255, 255, 255, 0.8); /* semi-transparent white lines */
+    --fill: rgba(255,255,255,.1);       /* subtle white fill under lines when checked */
+    --focus: 2px solid rgba(255,255,255,.9);
+    --shadow: 0 1px 6px rgba(0,0,0,.25);
+    --diag-scale: 1.41421356;           /* ≈ sqrt(2) */
+    --hit-pad: 4px;
+    --stagger-a: 0ms;
+    --stagger-b: 35ms;
+}
+
+/* Visually hide native checkbox but keep accessible */
+.xbox-input {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.xbox-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--hit-pad);
+    border-radius: .5rem;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: box-shadow var(--duration) var(--easing);
+}
+.xbox-label:hover { 
+    box-shadow: var(--shadow); 
+    transform: scale(1.05);
+    transition: all 0.2s ease;
+}
+
+/* Keyboard focus */
+.xbox-input:focus-visible + .xbox-label { outline: var(--focus); outline-offset: 4px; }
+.xbox-input:focus + .xbox-label { outline: var(--focus); outline-offset: 4px; }
+.xbox-input:focus:not(:focus-visible) + .xbox-label { outline: none; }
+
+/* Box & sides */
+.xbox-box {
+    position: relative;
+    inline-size: var(--box-size);
+    block-size: var(--box-size);
+    overflow: hidden; /* clip diagonals */
+}
+.xbox-box::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--fill);
+    opacity: 0;
+    transition: opacity var(--duration) var(--easing);
+    z-index: 0;
+}
+.xbox-input:checked + .xbox-label .xbox-box::before { 
+    opacity: 1; 
+    animation: xbox-check-pulse 0.3s ease-out;
+}
+
+@keyframes xbox-check-pulse {
+    0% { transform: scale(0.8); opacity: 0; }
+    50% { transform: scale(1.1); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.xbox-side {
+    position: absolute;
+    background: var(--color);
+    transform-origin: 50% 50%;
+    z-index: 1;
+    transition: transform var(--duration) var(--easing);
+    will-change: transform;
+}
+/* Square geometry */
+.xbox-side.top    { inset: 0 0 auto 0; block-size: var(--stroke); inline-size: 100%; }
+.xbox-side.bottom { inset: auto 0 0 0; block-size: var(--stroke); inline-size: 100%; }
+.xbox-side.left   { inset: 0 auto 0 0; inline-size: var(--stroke); block-size: 100%; }
+.xbox-side.right  { inset: 0 0 0 auto; inline-size: var(--stroke); block-size: 100%; }
+
+/* Micro-stagger */
+.xbox-side.top, .xbox-side.bottom { transition-delay: var(--stagger-a); }
+.xbox-side.left, .xbox-side.right { transition-delay: var(--stagger-b); }
+
+/* Hover morph: Square → X, reusing SAME sides */
+.xbox-label:hover .xbox-side.top {
+    transform: translateY(calc((var(--box-size) - var(--stroke)) / 2)) rotate(45deg) scaleX(var(--diag-scale));
+}
+.xbox-label:hover .xbox-side.right {
+    transform: translateX(calc(-1 * (var(--box-size) - var(--stroke)) / 2)) rotate(45deg) scaleY(var(--diag-scale));
+}
+.xbox-label:hover .xbox-side.bottom {
+    transform: translateY(calc(-1 * (var(--box-size) - var(--stroke)) / 2)) rotate(-45deg) scaleX(var(--diag-scale));
+}
+.xbox-label:hover .xbox-side.left {
+    transform: translateX(calc((var(--box-size) - var(--stroke)) / 2)) rotate(-45deg) scaleY(var(--diag-scale));
+}
+
+/* Maintain morph while checked */
+.xbox-input:checked + .xbox-label:hover .xbox-side.top    { transform: translateY(calc((var(--box-size) - var(--stroke)) / 2)) rotate(45deg) scaleX(var(--diag-scale)); }
+.xbox-input:checked + .xbox-label:hover .xbox-side.right  { transform: translateX(calc(-1 * (var(--box-size) - var(--stroke)) / 2)) rotate(45deg) scaleY(var(--diag-scale)); }
+.xbox-input:checked + .xbox-label:hover .xbox-side.bottom { transform: translateY(calc(-1 * (var(--box-size) - var(--stroke)) / 2)) rotate(-45deg) scaleX(var(--diag-scale)); }
+.xbox-input:checked + .xbox-label:hover .xbox-side.left   { transform: translateX(calc((var(--box-size) - var(--stroke)) / 2)) rotate(-45deg) scaleY(var(--diag-scale)); }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .xbox-side, .xbox-box::before, .xbox-label { transition: none; }
+}
+
+/* Platform-specific xbox checkbox colors */
+#threadly-panel[data-platform="chatgpt"] .xbox-side {
+    background: rgba(156, 163, 175, 0.8);
+}
+
+#threadly-panel[data-platform="gemini"] .xbox-side {
+    background: rgba(66, 133, 244, 0.8);
+}
+
+#threadly-panel[data-platform="claude"] .xbox-side {
+    background: rgba(255, 107, 53, 0.8);
+}
+
+#threadly-panel[data-platform="ai-studio"] .xbox-side {
+    background: rgba(66, 133, 244, 0.8);
+}
+
+#threadly-panel[data-platform="perplexity"] .xbox-side {
+    background: rgba(20, 184, 166, 0.8);
+}
+
+#threadly-panel[data-platform="grok"] .xbox-side {
+    background: rgba(31, 41, 55, 0.8);
+}
+
+#threadly-panel[data-platform="copilot"] .xbox-side {
+    background: rgba(0, 120, 212, 0.8);
+}
+
+/* Message checkbox - updated for xbox design */
 .threadly-message-checkbox {
     width: 16px;
     height: 16px;
@@ -1149,14 +1331,19 @@ body #threadly-panel[data-platform="gemini"] #threadly-message-list {
 }
 
 /* Selection mode styles */
-.selection-mode .threadly-message-item[data-starred="true"] .threadly-message-checkbox {
-    display: block !important;
+.selection-mode .threadly-message-item[data-starred="true"] .xbox-label {
+    display: inline-flex !important;
     opacity: 1;
     transform: scale(1);
 }
 
-.selection-mode .threadly-message-item:not([data-starred="true"]) .threadly-message-checkbox {
+.selection-mode .threadly-message-item:not([data-starred="true"]) .xbox-label {
     display: none !important;
+}
+
+/* Hide xbox labels by default */
+.xbox-label {
+    display: none;
 }
 
 /* Toggle bar animation */

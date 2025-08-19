@@ -135,9 +135,6 @@
                     <div class="threadly-tab-content">
                         <div class="threadly-search-row">
                             <input type="text" id="threadly-search-input" placeholder="Search messages..." />
-                            <button id="threadly-select-btn" class="threadly-select-btn">
-                                <span class="threadly-select-icon">☑️</span>
-                            </button>
                         </div>
                         
                         <div class="threadly-toggle-container">
@@ -178,9 +175,6 @@
                     <div class="threadly-search-container">
                         <div class="threadly-search-row">
                             <input type="text" id="threadly-search-input" placeholder="Search your prompts...">
-                            <button class="threadly-select-btn" id="threadly-select-btn" title="Select Messages" style="display: none;">
-                                <span class="threadly-select-icon">☐</span>
-                            </button>
                         </div>
                     </div>
                     <div id="threadly-message-list">
@@ -222,13 +216,7 @@
         toggleSegment.classList.add('user');
         messageFilterState = 'user';
         
-        // Ensure Select button is hidden by default
-        const selectBtn = document.getElementById('threadly-select-btn');
-        if (selectBtn) {
-            selectBtn.style.display = 'none';
-            selectBtn.style.opacity = '0';
-            selectBtn.style.transform = 'scale(0.8)';
-        }
+
         
         // Platform-specific positioning adjustments
         adjustUIForPlatform();
@@ -370,11 +358,7 @@
             }
         });
         
-        // Add Select button event listener
-        const selectBtn = document.getElementById('threadly-select-btn');
-        if (selectBtn) {
-            selectBtn.addEventListener('click', enterSelectionMode);
-        }
+
         
         // Add event listeners for contextual action buttons
         document.getElementById('threadly-assign-btn').addEventListener('click', showAssignToCollectionPopover);
@@ -774,7 +758,6 @@
             item.innerHTML = `
                 <div class="threadly-message-header">
                     <div class="threadly-message-left">
-                        <input type="checkbox" class="threadly-message-checkbox" data-message-id="${index}" style="display: none;">
                         <div class="threadly-message-role">
                             ${roleText}
                             ${platformIndicator}
@@ -789,27 +772,7 @@
                 ${isLongMessage ? '<div class="threadly-read-more">See More</div>' : ''}
             `;
 
-            // Add checkbox event listener
-            const checkbox = item.querySelector('.threadly-message-checkbox');
-            if (checkbox) {
-                checkbox.addEventListener('change', function(e) {
-                    e.stopPropagation();
-                    if (isInSelectionMode) {
-                        toggleMessageSelection(index, this.checked);
-                    }
-                });
-            }
-            
-            // Add click event for multipurpose functionality
-            checkbox.addEventListener('click', function(e) {
-                e.stopPropagation();
-                if (!isInSelectionMode) {
-                    // First click enters selection mode
-                    toggleSelectionMode();
-                    this.checked = true; // Check the clicked item
-                    toggleMessageSelection(index, true);
-                }
-            });
+
 
             // Add star button event listener
             const starBtn = item.querySelector('.threadly-star-btn');
@@ -954,9 +917,11 @@
             
             item.innerHTML = `
                 <div class="threadly-message-header">
-                    <div class="threadly-message-role">
-                        ${roleText}
-                        ${platformIndicator}
+                    <div class="threadly-message-left">
+                        <div class="threadly-message-role">
+                            ${roleText}
+                            ${platformIndicator}
+                        </div>
                     </div>
                     <button class="threadly-star-btn starred" title="Remove from favorites">
                         <span class="threadly-star-icon">★</span>
@@ -1025,35 +990,6 @@
         // Update the toggle segment position
         toggleSegment.classList.remove('user', 'assistant', 'fav', 'collection');
         toggleSegment.classList.add(state === 'user' ? 'user' : state === 'assistant' ? 'assistant' : state === 'favorites' ? 'fav' : 'collection');
-        
-        // Show/hide Select button based on state with smooth bouncy animation
-        const selectBtn = document.getElementById('threadly-select-btn');
-        const searchInput = document.getElementById('threadly-search-input');
-        
-        if (selectBtn && searchInput) {
-            if (state === 'favorites') {
-                // Add FAV state class (search bar stays same size)
-                searchInput.classList.add('fav-state');
-                
-                // Show Select button with smooth bouncy animation
-                selectBtn.style.display = 'flex';
-                requestAnimationFrame(() => {
-                    selectBtn.style.opacity = '1';
-                    selectBtn.style.transform = 'scale(1) translateZ(0)';
-                });
-                
-            } else {
-                // Hide Select button with smooth bouncy animation
-                selectBtn.style.opacity = '0';
-                selectBtn.style.transform = 'scale(0.8) translateZ(0)';
-                
-                // Wait for animation to complete before hiding
-                setTimeout(() => {
-                    selectBtn.style.display = 'none';
-                    searchInput.classList.remove('fav-state');
-                }, 600); // Match CSS transition duration
-            }
-        }
         
         await filterMessages(searchInput.value);
         console.log('Threadly: Filter state changed to:', state);
@@ -1456,6 +1392,9 @@
             contextualActions.style.display = 'flex';
         }
         
+        // Update checkbox states
+        updateCheckboxStates();
+        
         // Update selection info
         updateSelectionInfo();
         console.log('Threadly: Entered selection mode');
@@ -1474,6 +1413,15 @@
             contextualActions.style.display = 'none';
         }
         
+        // Uncheck all checkboxes
+        const checkboxes = document.querySelectorAll('.xbox-input');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        
+        // Update checkbox states
+        updateCheckboxStates();
+        
         // Update selection info
         updateSelectionInfo();
         console.log('Threadly: Exited selection mode');
@@ -1486,6 +1434,31 @@
         } else {
             enterSelectionMode();
         }
+    }
+    
+    // Update checkbox states when entering/exiting selection mode
+    function updateCheckboxStates() {
+        const checkboxes = document.querySelectorAll('.xbox-input');
+        checkboxes.forEach(checkbox => {
+            if (isInSelectionMode) {
+                // In selection mode, show checkboxes for starred messages
+                const messageItem = checkbox.closest('.threadly-message-item');
+                if (messageItem && messageItem.getAttribute('data-starred') === 'true') {
+                    checkbox.style.display = 'block';
+                    const label = checkbox.nextElementSibling;
+                    if (label && label.classList.contains('xbox-label')) {
+                        label.style.display = 'inline-flex';
+                    }
+                }
+            } else {
+                // Exit selection mode, hide all checkboxes
+                checkbox.style.display = 'none';
+                const label = checkbox.nextElementSibling;
+                if (label && label.classList.contains('xbox-label')) {
+                    label.style.display = 'none';
+                }
+            }
+        });
     }
 
     function updateSelectionInfo() {
@@ -1515,6 +1488,12 @@
             if (index !== -1) {
                 selectedMessageIds.splice(index, 1);
             }
+        }
+        
+        // Update the checkbox visual state
+        const checkbox = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (checkbox) {
+            checkbox.checked = checked;
         }
         
         updateSelectionInfo();
