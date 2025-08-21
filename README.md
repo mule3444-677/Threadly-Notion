@@ -13,16 +13,27 @@ Threadly is a universal browser extension that enhances your experience on major
 - **Ready for More**: Built with a scalable architecture to easily add new features like conversation tagging, exporting, and theme matching.
 - **Notion API**: Now with Notion API to save your prompts 
 
-## How to Use
+## 🚀 How to Use Threadly
 
-1. **Download or Clone** this extension folder to your computer.
-2. **Open Chrome** and go to `chrome://extensions/`.
-3. **Enable Developer Mode** (toggle in the top right).
-4. **Click "Load unpacked"** and select the `chrome-extension` folder.
-5. **Navigate** to any of the supported AI platforms (e.g., `chat.openai.com`, `claude.ai`).
-6. The **Threadly sidebar tab** will appear on the right side of the screen.
-7. **Click the tab** to expand the sidebar and interact with your conversation.
 
----
+1. **Install the Extension**  
+   - Clone or download this repository.  
+   - Open Chrome and go to `chrome://extensions/`.  
+   - Enable **Developer Mode** (toggle in the top right).  
+   - Click **Load unpacked** and select the `chrome-extension` folder.  
+
+2. **Open a Supported AI Platform**  
+   - Navigate to any supported site (e.g. [chat.openai.com](https://chat.openai.com), [claude.ai](https://claude.ai), [gemini.google.com](https://gemini.google.com), etc.).  
+   - The **Threadly sidebar tab** will appear on the right side of the screen.  
+
+3. **Connect to Notion (First-Time Setup)**  
+   - Click the sidebar tab to expand Threadly.  
+   - Press **Connect to Notion**.  
+   - A Notion login window will open → log in and select the workspace/pages you want to sync with Threadly.  
+   - Approve the integration.  
+
+4. **Start Using Threadly**  
+   - Your prompts and AI responses will now sync directly to your Notion database.  
+   - Use the sidebar to **search, filter, star, or organize** your messages.  
 
 **Enjoy a more powerful AI chat experience with Threadly!**
