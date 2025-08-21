@@ -11,6 +11,7 @@ Threadly is a universal browser extension that enhances your experience on major
 - **Platform-Aware**: Intelligently adapts to the structure of each AI platform for accurate conversation extraction.
 - **Responsive Design**: Clean and functional on all screen sizes, and auto-hides on mobile.
 - **Ready for More**: Built with a scalable architecture to easily add new features like conversation tagging, exporting, and theme matching.
+- **Notion API**: Now with Notion API to save your prompts 
 
 ## How to Use
 
